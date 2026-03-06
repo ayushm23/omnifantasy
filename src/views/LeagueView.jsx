@@ -871,8 +871,8 @@ const LeagueView = (props) => {
       {/* Sports Modal */}
       {showSportsModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-2xl max-w-6xl w-full border border-slate-700 shadow-2xl">
-            <div className="p-3 md:p-6 border-b border-slate-700 flex items-center justify-between">
+          <div className="bg-slate-800 rounded-2xl max-w-6xl w-full border border-slate-700 shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="p-3 md:p-6 border-b border-slate-700 flex items-center justify-between shrink-0">
               <div>
                 <h2 className="text-xl md:text-2xl font-bold text-white">Sports</h2>
                 <p className="text-sm text-slate-400 mt-1">General catalog across all supported sports.</p>
@@ -883,7 +883,7 @@ const LeagueView = (props) => {
                 </button>
               </div>
             </div>
-            <div className="p-3 md:p-6">
+            <div className="p-3 md:p-6 overflow-y-auto flex-1 min-h-0">
               <div className="mb-4 flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
