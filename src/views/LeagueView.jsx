@@ -556,7 +556,7 @@ const LeagueView = (props) => {
 
         {/* Big Board Tab */}
         {leagueTab === 'big-board' && (
-          <div className="space-y-6">
+          <div className="space-y-3">
             {draftBoard.length === 0 ? (
               <EmptyState icon="📋" title="No Draft Results Yet" description="The big board will show all team rosters once the draft is complete." />
             ) : (
@@ -574,11 +574,9 @@ const LeagueView = (props) => {
                   }`}
                 >
                   {/* Team Header */}
-                  <div className="bg-gradient-to-r from-slate-700/50 to-slate-800/50 p-4 border-b border-slate-700/50">
+                  <div className="bg-gradient-to-r from-slate-700/50 to-slate-800/50 px-3 py-2.5 border-b border-slate-700/50">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <h3 className="text-lg font-bold text-white">{team.teamName}</h3>
-                      </div>
+                      <h3 className="text-base font-bold text-white">{team.teamName}</h3>
                       {(() => {
                         const teamPoints = teamPicks.reduce((sum, p) => sum + (calculatePickPoints(p, sportResults) || 0), 0);
                         const teamEP = teamPicks.reduce((sum, p) => {
@@ -587,9 +585,9 @@ const LeagueView = (props) => {
                         }, 0);
                         const hasMissingEP = teamPicks.some(p => hasNoEPData(p.sport));
                         return (
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2.5">
                             {teamEP > 0 && (
-                              <div className="text-sm text-amber-400">
+                              <div className="text-xs text-amber-400">
                                 ~{Math.round(teamEP * 10) / 10} EP
                                 {hasMissingEP && (
                                   <span className="relative group/tip text-slate-500 ml-1 cursor-help">*<span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 pointer-events-none transition-opacity z-50">Some picks lack odds data — EP total is partial</span></span>
@@ -597,9 +595,9 @@ const LeagueView = (props) => {
                               </div>
                             )}
                             {teamPoints > 0 ? (
-                              <div className="text-xl font-bold text-green-400">{teamPoints} pts</div>
+                              <div className="text-base font-bold text-green-400">{teamPoints} pts</div>
                             ) : (
-                              <div className="text-sm text-slate-500">{teamPicks.length} picks</div>
+                              <div className="text-xs text-slate-500">{teamPicks.length} picks</div>
                             )}
                           </div>
                         );
@@ -608,45 +606,39 @@ const LeagueView = (props) => {
                   </div>
 
                   {/* Team's Picks */}
-                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="px-2.5 py-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5">
                     {teamPicks.map((pick) => {
                       const sportColor = getSportColor(pick.sport);
+                      const ep = getExpectedPoints(pick.sport, pick.team_name);
+                      const pts = calculatePickPoints(pick, sportResults);
                       return (
                         <div
                           key={pick.pick_number}
-                          className={`rounded-lg p-3 border-2 ${sportColor}`}
+                          className={`rounded-lg px-2 py-1.5 border ${sportColor}`}
                         >
-                          <div className="flex items-start justify-between mb-2">
-                            <span className="text-xs text-slate-500 font-semibold">{formatPick(pick)}</span>
-                            <div className="flex items-center gap-2">
-                              {(() => {
-                                const ep = getExpectedPoints(pick.sport, pick.team_name);
-                                if (ep !== null) {
-                                  return <span className="text-xs text-amber-400">~{ep}</span>;
-                                }
-                                if (hasNoEPData(pick.sport)) {
-                                  return <span className="relative group/tip text-xs text-slate-500 cursor-help">TBD<span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 pointer-events-none transition-opacity z-50">Odds not yet available for this sport</span></span>;
-                                }
-                                return null;
-                              })()}
-                              {(() => {
-                                const pts = calculatePickPoints(pick, sportResults);
-                                return pts > 0 ? <span className="text-sm font-bold text-green-400">+{pts}</span>
-                                  : pts === null ? <span className="text-xs text-slate-600">TBD</span>
-                                  : null;
-                              })()}
-                            </div>
-                          </div>
-                          <div className="mb-1">
-                            <SportBadge sport={pick.sport} size="md" />
+                          <div className="flex items-center justify-between mb-1">
+                            <SportBadge sport={pick.sport} size="sm" />
+                            <span className="text-[10px] text-slate-500 font-semibold">{formatPick(pick)}</span>
                           </div>
                           <button
-                            className="font-semibold text-white text-sm text-left hover:text-amber-300 transition-colors"
-                            onClick={() => setSelectedTeamInfo({ sport: pick.sport, team: pick.team_name, currentEP: getExpectedPoints(pick.sport, pick.team_name) })}
+                            className="font-semibold text-white text-xs text-left hover:text-amber-300 transition-colors leading-tight w-full truncate block"
+                            onClick={() => setSelectedTeamInfo({ sport: pick.sport, team: pick.team_name, currentEP: ep })}
                             title="View EP trend"
                           >
                             {pick.team_name}
                           </button>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {ep !== null ? (
+                              <span className="text-[10px] text-amber-400">~{ep} EP</span>
+                            ) : hasNoEPData(pick.sport) ? (
+                              <span className="relative group/tip text-[10px] text-slate-500 cursor-help">TBD<span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 pointer-events-none transition-opacity z-50">Odds not yet available for this sport</span></span>
+                            ) : null}
+                            {pts > 0 ? (
+                              <span className="text-xs font-bold text-green-400 ml-auto">+{pts}</span>
+                            ) : pts === null ? (
+                              <span className="text-[10px] text-slate-600 ml-auto">…</span>
+                            ) : null}
+                          </div>
                         </div>
                       );
                     })}
