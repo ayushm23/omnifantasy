@@ -1285,9 +1285,9 @@ const DraftView = (props) => {
                           key={`sports-modal-row-${row.sport}-${row.team}`}
                           className="grid grid-cols-[minmax(0,1fr)_90px_90px] md:grid-cols-[minmax(0,1fr)_120px_140px] gap-0 items-center px-3 py-2 border-b border-slate-700/40 text-left text-white bg-slate-900/65"
                         >
-                          <div className="font-semibold truncate pr-2">
+                          <div className="font-semibold min-w-0 pr-2">
                             <button
-                              className="text-left hover:text-amber-300 transition-colors truncate w-full"
+                              className="text-left hover:text-amber-300 transition-colors line-clamp-2 w-full"
                               onClick={() => {
                                 setShowSportsModal(false);
                                 teamInfoFromSportsRef.current = true;
