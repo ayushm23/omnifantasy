@@ -109,6 +109,8 @@ const DraftView = (props) => {
     const [selectedTeamInfo, setSelectedTeamInfo] = useState(null); // { sport, team, currentEP } | null
     const teamInfoFromSportsRef = useRef(false); // true when popup was opened from the sports catalog modal
     const [showClearQueueConfirm, setShowClearQueueConfirm] = useState(false);
+    const [showMobileMenu, setShowMobileMenu] = useState(false);
+    const [showMobileQueue, setShowMobileQueue] = useState(false);
 
     useEffect(() => {
       if (!selectedLeague?.sports?.length) return;
@@ -333,46 +335,75 @@ const DraftView = (props) => {
       <div className="h-screen flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         {/* Draft Header */}
         <div className="bg-slate-800/60 backdrop-blur-sm border-b border-slate-700 shrink-0 z-50">
-          <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="max-w-7xl mx-auto px-3 md:px-6 py-4">
             {/* Top row - Branding and User */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="text-3xl">🏆</div>
                 <h1 className="text-2xl font-bold text-white">OmniFantasy</h1>
               </div>
-              <div className="flex items-center gap-2 md:gap-4 flex-wrap justify-end">
-                <button
-                  onClick={() => setShowRulesModal(true)}
-                  className="shrink-0 text-slate-300 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md border border-slate-600/60 hover:bg-slate-700/50"
-                >
-                  📖 Rules
-                </button>
-                <button
-                  onClick={() => setShowSportsModal(true)}
-                  className="shrink-0 text-slate-300 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md border border-slate-600/60 hover:bg-slate-700/50"
-                >
-                  🏟️ Sports
-                </button>
-                {!isDraftComplete && (
+              <div className="flex items-center gap-2">
+                {/* Desktop nav */}
+                <div className="hidden md:flex items-center gap-2 md:gap-4 flex-wrap justify-end">
                   <button
-                    onClick={() => setShowUserSettings(true)}
-                    className="shrink-0 flex items-center gap-1.5 text-slate-300 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md border border-slate-600/60 hover:bg-slate-700/50"
+                    onClick={() => setShowRulesModal(true)}
+                    className="shrink-0 text-slate-300 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md border border-slate-600/60 hover:bg-slate-700/50"
                   >
-                    <Settings size={14} />
-                    Settings
+                    📖 Rules
                   </button>
-                )}
-                <div className="hidden md:flex items-center gap-3">
-                  <span className="text-slate-300 text-sm">{getUserDisplayName(currentUser)}</span>
                   <button
-                    onClick={handleLogout}
-                    className="text-slate-400 hover:text-white text-sm transition-colors"
+                    onClick={() => setShowSportsModal(true)}
+                    className="shrink-0 text-slate-300 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md border border-slate-600/60 hover:bg-slate-700/50"
                   >
-                    Logout
+                    🏟️ Sports
                   </button>
+                  {!isDraftComplete && (
+                    <button
+                      onClick={() => setShowUserSettings(true)}
+                      className="shrink-0 flex items-center gap-1.5 text-slate-300 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md border border-slate-600/60 hover:bg-slate-700/50"
+                    >
+                      <Settings size={14} />
+                      Settings
+                    </button>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <span className="text-slate-300 text-sm">{getUserDisplayName(currentUser)}</span>
+                    <button onClick={handleLogout} className="text-slate-400 hover:text-white text-sm transition-colors">
+                      Logout
+                    </button>
+                  </div>
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                    {getUserInitials(currentUser)}
+                  </div>
                 </div>
-                <div className="hidden sm:flex w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full items-center justify-center text-white font-bold">
-                  {getUserInitials(currentUser)}
+                {/* Mobile nav */}
+                <div className="flex md:hidden items-center gap-2">
+                  <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                    {getUserInitials(currentUser)}
+                  </div>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowMobileMenu(v => !v)}
+                      className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-md transition-colors"
+                      aria-label="Menu"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><rect y="3" width="20" height="2" rx="1"/><rect y="9" width="20" height="2" rx="1"/><rect y="15" width="20" height="2" rx="1"/></svg>
+                    </button>
+                    {showMobileMenu && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowMobileMenu(false)} />
+                        <div className="absolute right-0 top-full mt-1 w-44 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-20 overflow-hidden">
+                          <button onClick={() => { setShowRulesModal(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">📖 Rules</button>
+                          <button onClick={() => { setShowSportsModal(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">🏟️ Sports</button>
+                          {!isDraftComplete && <button onClick={() => { setShowUserSettings(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"><Settings size={14} /> Settings</button>}
+                          <div className="border-t border-slate-700">
+                            <div className="px-4 py-2 text-xs text-slate-500">{getUserDisplayName(currentUser)}</div>
+                            <button onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm text-slate-400 hover:bg-slate-700 hover:text-red-400 transition-colors">Logout</button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -385,7 +416,7 @@ const DraftView = (props) => {
                 </button>
                 <div className="flex items-center gap-3">
                   <div>
-                    <h2 className="text-xl font-bold text-white">{selectedLeague?.name} - Draft</h2>
+                    <h2 className="text-base md:text-xl font-bold text-white">{selectedLeague?.name} - Draft</h2>
                     <div className="text-sm text-slate-400">
                       {isDraftComplete
                         ? `Draft complete • ${completedPicks}/${totalPicks} picks`
@@ -401,7 +432,7 @@ const DraftView = (props) => {
                         setRollbackPickInRound(Math.max(1, currentPickInRound));
                         setShowRollbackModal(true);
                       }}
-                      className="ml-2 text-xs px-3 py-1.5 bg-slate-700/40 hover:bg-slate-700/60 text-slate-500 hover:text-slate-300 border border-slate-600/40 hover:border-slate-500/60 rounded-lg transition-all whitespace-nowrap"
+                      className="hidden sm:inline-flex ml-2 text-xs px-3 py-1.5 bg-slate-700/40 hover:bg-slate-700/60 text-slate-500 hover:text-slate-300 border border-slate-600/40 hover:border-slate-500/60 rounded-lg transition-all whitespace-nowrap"
                       title="Commissioner: roll back draft picks"
                     >
                       ↩ Roll Back
@@ -483,9 +514,9 @@ const DraftView = (props) => {
         </div>
         
         {/* Draft Content */}
-        <div className="flex-1 overflow-hidden flex gap-6 px-6 max-w-[1600px] mx-auto w-full">
-          <div className="flex-1 min-w-0 overflow-y-auto py-8">
-<div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+        <div className="flex-1 overflow-hidden flex gap-0 md:gap-6 px-3 md:px-6 max-w-[1600px] mx-auto w-full">
+          <div className="flex-1 min-w-0 overflow-y-auto py-4 md:py-8">
+<div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-3 md:p-6">
             {isDraftComplete ? (
               <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
                 <div className="text-5xl">🏆</div>
@@ -612,7 +643,7 @@ const DraftView = (props) => {
               )}
             </div>
 
-            <div className="mb-4 flex flex-col xl:flex-row gap-2">
+            <div className="mb-4 flex flex-col md:flex-row gap-2">
               <input
                 type="text"
                 value={gridSearch}
@@ -670,7 +701,7 @@ const DraftView = (props) => {
                 </span>
               </div>
               <div className="rounded-lg border border-slate-700/50">
-                <div className="grid grid-cols-[minmax(0,1fr)_110px_120px_110px_68px_52px] gap-0 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-100 bg-slate-700 border-b border-slate-600 rounded-t-lg">
+                <div className="hidden md:grid grid-cols-[minmax(0,1fr)_110px_120px_110px_68px_52px] gap-0 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-100 bg-slate-700 border-b border-slate-600 rounded-t-lg">
                   <div>Team</div>
                   <div>Sport</div>
                   <div>EP</div>
@@ -688,81 +719,141 @@ const DraftView = (props) => {
                   const queueEntry = queuePositionMap.get(`${sport}::${team}`);
 
                   return (
-                    <div
-                      key={`${sport}::${team}`}
-                      className={`w-full grid grid-cols-[minmax(0,1fr)_110px_120px_110px_68px_52px] gap-0 items-center px-3 py-2 border-b border-slate-700/40 transition-all text-left cursor-default ${rowClass}`}
-                    >
-                      <div className="font-semibold truncate pr-2">
-                        <button
-                          className="text-left hover:text-amber-300 transition-colors truncate w-full"
-                          onClick={e => { e.stopPropagation(); setSelectedTeamInfo({ sport, team, currentEP: ep }); }}
-                          title="View EP trend"
-                        >
-                          {team}
-                        </button>
-                      </div>
-                      <div>
-                        <SportBadge sport={sport} />
-                      </div>
-                      <div className="text-sm">
-                        {ep !== null ? (
-                          <span className="text-amber-400 font-medium">~{ep} EP</span>
-                        ) : hasNoEPData(sport) ? (
-                          <span className="text-slate-500">TBD</span>
-                        ) : (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </div>
-                      <div className="text-xs overflow-visible">
-                        {alreadyPicked
-                          ? (pickedBy?.picker_name || pickedBy?.picker_email?.split('@')[0] || 'Picked')
-                          : isDraftComplete
-                          ? 'Draft complete'
-                          : isPickerSportFull(sport) || blocksRequiredSportCoverage
-                          ? (
-                            <span className="relative group/lock cursor-help">
-                              Locked
-                              <span className="pointer-events-none absolute bottom-full left-0 mb-1 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded opacity-0 group-hover/lock:opacity-100 transition-opacity z-50 w-max max-w-[180px] leading-snug">
-                                {isPickerSportFull(sport)
-                                  ? 'Sport slot filled — no flex picks remaining'
-                                  : 'Would prevent covering all required sports'}
-                              </span>
-                            </span>
-                          )
-                          : 'Available'}
-                      </div>
-                      <div className="flex items-center justify-center">
-                        {canPick && (
+                    <React.Fragment key={`${sport}::${team}`}>
+                      {/* Mobile card */}
+                      <div className={`md:hidden flex items-center gap-3 px-3 py-3 border-b border-slate-700/40 transition-all ${rowClass}`}>
+                        <div className="shrink-0">
+                          <SportBadge sport={sport} />
+                        </div>
+                        <div className="flex-1 min-w-0">
                           <button
-                            onClick={(e) => { e.stopPropagation(); setPendingPick({ sport, team }); setShowPickConfirmation(true); }}
-                            className="text-[11px] px-2 py-1 rounded font-semibold bg-green-600 hover:bg-green-500 text-white transition-colors"
+                            className="text-left font-semibold truncate w-full hover:text-amber-300 transition-colors"
+                            onClick={e => { e.stopPropagation(); setSelectedTeamInfo({ sport, team, currentEP: ep }); }}
                           >
-                            Draft
+                            {team}
                           </button>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-center">
-                        {!alreadyPicked && !isDraftComplete && !blocksRequiredSportCoverage && (
-                          queueEntry ? (
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            {ep !== null ? (
+                              <span className="text-xs text-amber-400">~{ep} EP</span>
+                            ) : hasNoEPData(sport) ? (
+                              <span className="text-xs text-slate-500">TBD</span>
+                            ) : null}
+                            <span className="text-xs text-slate-500">
+                              {alreadyPicked
+                                ? `Picked by ${pickedBy?.picker_name || pickedBy?.picker_email?.split('@')[0] || 'someone'}`
+                                : isDraftComplete ? 'Draft complete'
+                                : isPickerSportFull(sport) || blocksRequiredSportCoverage ? 'Locked'
+                                : 'Available'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {canPick && (
                             <button
-                              onClick={(e) => { e.stopPropagation(); onRemoveFromQueue(queueEntry.id); }}
-                              className="text-base leading-none hover:opacity-70 transition-opacity"
-                              title={`#${queueEntry.rank} in queue — click to remove`}
+                              onClick={(e) => { e.stopPropagation(); setPendingPick({ sport, team }); setShowPickConfirmation(true); }}
+                              className="text-xs px-3 py-1.5 rounded font-semibold bg-green-600 hover:bg-green-500 text-white transition-colors"
                             >
-                              ⭐
+                              Draft
                             </button>
+                          )}
+                          {!alreadyPicked && !isDraftComplete && !blocksRequiredSportCoverage && (() => {
+                            const queueEntry = queuePositionMap.get(`${sport}::${team}`);
+                            if (queueEntry) {
+                              return (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); onRemoveFromQueue(queueEntry.id); }}
+                                  className="text-base leading-none hover:opacity-70 transition-opacity"
+                                  title={`#${queueEntry.rank} in queue — click to remove`}
+                                >⭐</button>
+                              );
+                            }
+                            return (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onAddToQueue(sport, team); }}
+                                className="text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 w-7 h-7 rounded flex items-center justify-center transition-colors font-bold text-lg"
+                                title="Add to queue"
+                              >+</button>
+                            );
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Desktop row */}
+                      <div
+                        className={`hidden md:grid w-full grid-cols-[minmax(0,1fr)_110px_120px_110px_68px_52px] gap-0 items-center px-3 py-2 border-b border-slate-700/40 transition-all text-left cursor-default ${rowClass}`}
+                      >
+                        <div className="font-semibold truncate pr-2">
+                          <button
+                            className="text-left hover:text-amber-300 transition-colors truncate w-full"
+                            onClick={e => { e.stopPropagation(); setSelectedTeamInfo({ sport, team, currentEP: ep }); }}
+                            title="View EP trend"
+                          >
+                            {team}
+                          </button>
+                        </div>
+                        <div>
+                          <SportBadge sport={sport} />
+                        </div>
+                        <div className="text-sm">
+                          {ep !== null ? (
+                            <span className="text-amber-400 font-medium">~{ep} EP</span>
+                          ) : hasNoEPData(sport) ? (
+                            <span className="text-slate-500">TBD</span>
                           ) : (
+                            <span className="text-slate-500">-</span>
+                          )}
+                        </div>
+                        <div className="text-xs overflow-visible">
+                          {alreadyPicked
+                            ? (pickedBy?.picker_name || pickedBy?.picker_email?.split('@')[0] || 'Picked')
+                            : isDraftComplete
+                            ? 'Draft complete'
+                            : isPickerSportFull(sport) || blocksRequiredSportCoverage
+                            ? (
+                              <span className="relative group/lock cursor-help">
+                                Locked
+                                <span className="pointer-events-none absolute bottom-full left-0 mb-1 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded opacity-0 group-hover/lock:opacity-100 transition-opacity z-50 w-max max-w-[180px] leading-snug">
+                                  {isPickerSportFull(sport)
+                                    ? 'Sport slot filled — no flex picks remaining'
+                                    : 'Would prevent covering all required sports'}
+                                </span>
+                              </span>
+                            )
+                            : 'Available'}
+                        </div>
+                        <div className="flex items-center justify-center">
+                          {canPick && (
                             <button
-                              onClick={(e) => { e.stopPropagation(); onAddToQueue(sport, team); }}
-                              className="text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 w-6 h-6 rounded flex items-center justify-center transition-colors font-bold text-base"
-                              title="Add to queue"
+                              onClick={(e) => { e.stopPropagation(); setPendingPick({ sport, team }); setShowPickConfirmation(true); }}
+                              className="text-[11px] px-2 py-1 rounded font-semibold bg-green-600 hover:bg-green-500 text-white transition-colors"
                             >
-                              +
+                              Draft
                             </button>
-                          )
-                        )}
+                          )}
+                        </div>
+                        <div className="flex items-center justify-center">
+                          {!alreadyPicked && !isDraftComplete && !blocksRequiredSportCoverage && (
+                            queueEntry ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onRemoveFromQueue(queueEntry.id); }}
+                                className="text-base leading-none hover:opacity-70 transition-opacity"
+                                title={`#${queueEntry.rank} in queue — click to remove`}
+                              >
+                                ⭐
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onAddToQueue(sport, team); }}
+                                className="text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 w-6 h-6 rounded flex items-center justify-center transition-colors font-bold text-base"
+                                title="Add to queue"
+                              >
+                                +
+                              </button>
+                            )
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    </React.Fragment>
                   );
                 })}
                 {draftGridRows.length === 0 && (
@@ -799,7 +890,7 @@ const DraftView = (props) => {
           </div>{/* end flex-1 main area */}
 
           {/* My Roster Sidebar */}
-          <div className="w-64 shrink-0 overflow-y-auto py-8">
+          <div className="hidden md:block w-64 shrink-0 overflow-y-auto py-8">
             <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-bold text-white text-sm">My Roster</h2>
@@ -875,6 +966,17 @@ const DraftView = (props) => {
               )}
             </div>
           </div>
+        </div>
+
+        {/* Mobile queue toggle bar */}
+        <div className="md:hidden shrink-0 px-3 py-2 bg-slate-900/95 backdrop-blur-sm border-t border-slate-700">
+          <button
+            onClick={() => setShowMobileQueue(true)}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold transition-colors"
+          >
+            My Queue {(queue?.length || 0) > 0 ? `(${queue.length})` : '(empty)'} ▲
+            {(queue?.length || 0) > 0 && draftSettings?.autoPickFromQueue && <span className="text-xs text-blue-400">[auto]</span>}
+          </button>
         </div>
 
         {/* User Settings Modal */}
@@ -1111,9 +1213,9 @@ const DraftView = (props) => {
         {showSportsModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl max-w-6xl w-full border border-slate-700 shadow-2xl">
-              <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+              <div className="p-3 md:p-6 border-b border-slate-700 flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">Sports</h2>
+                  <h2 className="text-xl md:text-2xl font-bold text-white">Sports</h2>
                   <p className="text-sm text-slate-400 mt-1">General catalog across all supported sports.</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1126,8 +1228,8 @@ const DraftView = (props) => {
                 </div>
               </div>
 
-              <div className="p-6">
-                <div className="mb-4 flex flex-col lg:flex-row gap-2">
+              <div className="p-3 md:p-6">
+                <div className="mb-4 flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     value={sportsSearch}
@@ -1162,8 +1264,8 @@ const DraftView = (props) => {
                   </button>
                 </div>
 
-                <div className="max-h-[560px] overflow-y-auto rounded-lg border border-slate-700/50">
-                  <div className="grid grid-cols-[minmax(0,1fr)_120px_140px] gap-0 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-100 bg-slate-700 border-b border-slate-600 sticky top-0 z-10">
+                <div className="max-h-[55vh] md:max-h-[560px] overflow-y-auto rounded-lg border border-slate-700/50">
+                  <div className="grid grid-cols-[minmax(0,1fr)_90px_90px] md:grid-cols-[minmax(0,1fr)_120px_140px] gap-0 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-100 bg-slate-700 border-b border-slate-600 sticky top-0 z-10">
                     <div>Team</div>
                     <div>Sport</div>
                     <div>EP</div>
@@ -1181,7 +1283,7 @@ const DraftView = (props) => {
                       {sportsCatalogRows.map((row) => (
                         <div
                           key={`sports-modal-row-${row.sport}-${row.team}`}
-                          className="grid grid-cols-[minmax(0,1fr)_120px_140px] gap-0 items-center px-3 py-2 border-b border-slate-700/40 text-left text-white bg-slate-900/65"
+                          className="grid grid-cols-[minmax(0,1fr)_90px_90px] md:grid-cols-[minmax(0,1fr)_120px_140px] gap-0 items-center px-3 py-2 border-b border-slate-700/40 text-left text-white bg-slate-900/65"
                         >
                           <div className="font-semibold truncate pr-2">
                             <button
@@ -1238,6 +1340,89 @@ const DraftView = (props) => {
             }
           }}
         />
+      )}
+
+      {/* Mobile queue bottom sheet */}
+      {showMobileQueue && (
+        <div className="md:hidden fixed inset-0 z-[60] flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowMobileQueue(false)} />
+          <div className="relative bg-slate-800 rounded-t-2xl max-h-[80vh] overflow-y-auto">
+            <div className="sticky top-0 bg-slate-800 px-4 pt-4 pb-3 border-b border-slate-700 flex items-center justify-between rounded-t-2xl">
+              <span className="font-semibold text-white">My Queue</span>
+              <button onClick={() => setShowMobileQueue(false)} className="text-slate-400 hover:text-white transition-colors">✕</button>
+            </div>
+            <div className="p-4">
+              {/* Queue content — same as sidebar */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-white">My Queue</span>
+                  {(queue?.length || 0) > 0 && <span className="text-xs text-slate-400">({queue.length})</span>}
+                </div>
+                {(queue?.length || 0) > 0 && (
+                  <button
+                    onClick={() => setShowClearQueueConfirm(true)}
+                    className="text-xs px-2 py-1 text-slate-400 hover:text-red-400 border border-slate-600/50 hover:border-red-500/50 rounded transition-colors"
+                  >
+                    Clear All ×
+                  </button>
+                )}
+              </div>
+              {queueError && (
+                <div className="mb-2 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-xs">
+                  Queue error: {queueError.message || String(queueError)} — try again
+                </div>
+              )}
+              {!(queue?.length) ? (
+                <div className="text-sm text-slate-500 italic text-center py-4">
+                  — Queue empty — tap + on a team to add it
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {(() => {
+                    const visibleQueue = queue.filter((item) => !(supabasePicks || []).some(
+                      (p) => p.sport === item.sport && p.team_name === item.team
+                    ));
+                    return visibleQueue.map((item, idx) => {
+                      const itemEp = getExpectedPoints(item.sport, item.team);
+                      const canPickFromQueue = (
+                        !isDraftComplete && isMyTurn &&
+                        !isPickerSportFull(item.sport) &&
+                        !wouldBreakRequiredSportAvailability(currentPicker?.email, item.sport, item.team)
+                      );
+                      return (
+                        <div key={item.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-600/30 bg-slate-800/40">
+                          <span className="text-xs font-mono text-slate-400 w-5 shrink-0 text-center">{idx + 1}.</span>
+                          <SportBadge sport={item.sport} className="shrink-0" />
+                          <span className="flex-1 text-sm font-semibold truncate text-white">{item.team}</span>
+                          {itemEp !== null && <span className="text-xs text-amber-400 shrink-0">~{itemEp} EP</span>}
+                          {canPickFromQueue && (
+                            <button
+                              onClick={() => { setPendingPick({ sport: item.sport, team: item.team }); setShowPickConfirmation(true); setShowMobileQueue(false); }}
+                              className="text-xs px-2 py-1 rounded bg-green-600 hover:bg-green-500 text-white font-semibold shrink-0"
+                            >Draft</button>
+                          )}
+                          <button onClick={() => onRemoveFromQueue(item.id)} className="text-slate-400 hover:text-red-400 shrink-0 text-sm">✕</button>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+              {/* Auto-pick toggle */}
+              <div className="mt-4 pt-3 border-t border-slate-700">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!draftSettings?.autoPickFromQueue}
+                    onChange={(e) => onUpdateDraftSettings({ autoPickFromQueue: e.target.checked })}
+                    className="rounded bg-slate-900 border-slate-600"
+                  />
+                  <span className="text-sm text-slate-300">Auto-pick from queue</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       </div>
     );

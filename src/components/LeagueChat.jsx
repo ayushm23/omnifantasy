@@ -118,7 +118,7 @@ export default function LeagueChat({ leagueId, currentUser, isOpen, onOpen, onCl
 
       {/* Chat panel */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 w-[360px] max-w-[calc(100vw-1.5rem)] flex flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/50 overflow-hidden">
+        <div className="fixed bottom-24 right-6 z-50 w-[360px] max-w-[calc(100vw-0.5rem)] flex flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/50 overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700 flex-shrink-0">
             <div className="flex items-center gap-2">
@@ -183,7 +183,7 @@ export default function LeagueChat({ leagueId, currentUser, isOpen, onOpen, onCl
           {/* Emoji palette (above input) */}
           {showEmoji && (
             <div className="border-t border-slate-700 px-3 py-2 bg-slate-850">
-              <div className="grid grid-cols-10 gap-0.5">
+              <div className="grid grid-cols-8 sm:grid-cols-10 gap-0.5">
                 {EMOJI_LIST.map((emoji) => (
                   <button
                     key={emoji}

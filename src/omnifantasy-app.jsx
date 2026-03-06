@@ -48,6 +48,7 @@ const OmnifantasyApp = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showHomeSportsModal, setShowHomeSportsModal] = useState(false);
+  const [showHomeMobileMenu, setShowHomeMobileMenu] = useState(false);
 
   // Close modal when authenticated
   useEffect(() => {
@@ -1029,13 +1030,14 @@ const OmnifantasyApp = () => {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         {/* Header */}
         <div className="bg-slate-800/60 backdrop-blur-sm border-b border-slate-700 sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="max-w-7xl mx-auto px-3 md:px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="text-3xl">🏆</div>
                 <h1 className="text-2xl font-bold text-white">OmniFantasy</h1>
               </div>
-              <div className="flex items-center gap-4">
+              {/* Desktop nav */}
+              <div className="hidden md:flex items-center gap-4">
                 <button
                   onClick={() => setShowRulesModal(true)}
                   className="text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
@@ -1057,10 +1059,7 @@ const OmnifantasyApp = () => {
                 </button>
                 <div className="flex items-center gap-3">
                   <span className="text-slate-300 text-sm">{getUserDisplayName(currentUser)}</span>
-                  <button
-                    onClick={handleLogout}
-                    className="text-slate-400 hover:text-white text-sm transition-colors"
-                  >
+                  <button onClick={handleLogout} className="text-slate-400 hover:text-white text-sm transition-colors">
                     Logout
                   </button>
                 </div>
@@ -1068,12 +1067,41 @@ const OmnifantasyApp = () => {
                   {getUserInitials(currentUser)}
                 </div>
               </div>
+              {/* Mobile nav */}
+              <div className="flex md:hidden items-center gap-2">
+                <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                  {getUserInitials(currentUser)}
+                </div>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowHomeMobileMenu(v => !v)}
+                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-md transition-colors"
+                    aria-label="Menu"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><rect y="3" width="20" height="2" rx="1"/><rect y="9" width="20" height="2" rx="1"/><rect y="15" width="20" height="2" rx="1"/></svg>
+                  </button>
+                  {showHomeMobileMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowHomeMobileMenu(false)} />
+                      <div className="absolute right-0 top-full mt-1 w-44 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-20 overflow-hidden">
+                        <button onClick={() => { setShowRulesModal(true); setShowHomeMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2">📖 Rules</button>
+                        <button onClick={() => { setShowHomeSportsModal(true); setShowHomeMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2">🏟️ Sports</button>
+                        <button onClick={() => { setShowUserSettings(true); setShowHomeMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"><Settings size={14} /> Settings</button>
+                        <div className="border-t border-slate-700">
+                          <div className="px-4 py-2 text-xs text-slate-500">{getUserDisplayName(currentUser)}</div>
+                          <button onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm text-slate-400 hover:bg-slate-700 hover:text-red-400 transition-colors">Logout</button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="max-w-7xl mx-auto px-3 md:px-6 py-6 md:py-8">
           {/* Leagues Header with Tabs */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
@@ -1081,9 +1109,9 @@ const OmnifantasyApp = () => {
               {leagues.length > 0 && (
                 <button
                   onClick={() => setShowCreateModal(true)}
-                  className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40"
+                  className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-semibold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 text-sm md:text-base"
                 >
-                  <Plus size={20} />
+                  <Plus size={18} />
                   Create League
                 </button>
               )}
@@ -1936,16 +1964,16 @@ const OmnifantasyApp = () => {
       {showHomeSportsModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-slate-800 rounded-2xl max-w-6xl w-full border border-slate-700 shadow-2xl">
-            <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+            <div className="p-3 md:p-6 border-b border-slate-700 flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-white">Sports</h2>
+                <h2 className="text-xl md:text-2xl font-bold text-white">Sports</h2>
                 <p className="text-sm text-slate-400 mt-1">General catalog across all supported sports.</p>
               </div>
               <button onClick={() => setShowHomeSportsModal(false)} className="text-slate-400 hover:text-white transition-colors p-1 hover:bg-slate-700/50 rounded">
                 <X size={22} />
               </button>
             </div>
-            <div className="p-6">
+            <div className="p-3 md:p-6">
               {(() => {
                 const search = homeSportsSearch.trim().toLowerCase();
                 const rows = selectableSports.flatMap(({ code, name }) => {
@@ -1973,7 +2001,7 @@ const OmnifantasyApp = () => {
 
                 return (
                   <>
-                    <div className="mb-4 flex flex-col lg:flex-row gap-2">
+                    <div className="mb-4 flex flex-col sm:flex-row gap-2">
                       <input
                         type="text"
                         value={homeSportsSearch}
@@ -2008,8 +2036,8 @@ const OmnifantasyApp = () => {
                       </button>
                     </div>
 
-                    <div className="max-h-[560px] overflow-y-auto rounded-lg border border-slate-700/50">
-                      <div className="grid grid-cols-[minmax(0,1fr)_120px_140px] gap-0 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-100 bg-slate-700 border-b border-slate-600 sticky top-0 z-10">
+                    <div className="max-h-[55vh] md:max-h-[560px] overflow-y-auto rounded-lg border border-slate-700/50">
+                      <div className="grid grid-cols-[minmax(0,1fr)_90px_90px] md:grid-cols-[minmax(0,1fr)_120px_140px] gap-0 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-100 bg-slate-700 border-b border-slate-600 sticky top-0 z-10">
                         <div>Team</div>
                         <div>Sport</div>
                         <div>EP</div>
@@ -2025,7 +2053,7 @@ const OmnifantasyApp = () => {
                       ) : (
                         <>
                           {rows.map((row) => (
-                            <div key={`home-sports-row-${row.sport}-${row.team}`} className="grid grid-cols-[minmax(0,1fr)_120px_140px] gap-0 items-center px-3 py-2 border-b border-slate-700/40 text-left text-white bg-slate-900/65">
+                            <div key={`home-sports-row-${row.sport}-${row.team}`} className="grid grid-cols-[minmax(0,1fr)_90px_90px] md:grid-cols-[minmax(0,1fr)_120px_140px] gap-0 items-center px-3 py-2 border-b border-slate-700/40 text-left text-white bg-slate-900/65">
                               <div className="font-semibold truncate pr-2">
                                 <button
                                   className="text-left hover:text-amber-300 transition-colors truncate w-full"

@@ -45,6 +45,8 @@ const LeagueView = (props) => {
   const [sportsSortDir, setSportsSortDir] = useState('desc');
   const [selectedTeamInfo, setSelectedTeamInfo] = useState(null); // { sport, team, currentEP } | null
   const teamInfoFromSportsRef = useRef(false); // true when popup was opened from the sports catalog modal
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [expandedStandingsEmail, setExpandedStandingsEmail] = useState(null);
   const leagueSportsRows = useMemo(() => {
     const search = sportsSearch.trim().toLowerCase();
     const rows = (allSportCodes || []).flatMap((sport) => {
@@ -84,45 +86,76 @@ const LeagueView = (props) => {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Header */}
       <div className="bg-slate-800/60 backdrop-blur-sm border-b border-slate-700 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-3 md:px-6 py-4">
           {/* Top row - Branding and User */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className="text-3xl">🏆</div>
               <h1 className="text-2xl font-bold text-white">OmniFantasy</h1>
             </div>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setShowRulesModal(true)}
-                className="text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
-              >
-                📖 Rules
-              </button>
-              <button
-                onClick={() => setShowSportsModal(true)}
-                className="text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
-              >
-                🏟️ Sports
-              </button>
-              <button
-                onClick={() => setShowUserSettings(true)}
-                className="flex items-center gap-1.5 text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
-              >
-                <Settings size={14} />
-                Settings
-              </button>
-
-              <div className="flex items-center gap-3">
-                <span className="text-slate-300 text-sm">{getUserDisplayName(currentUser)}</span>
+            <div className="flex items-center gap-2 md:gap-4">
+              {/* Desktop nav — visible md+ */}
+              <div className="hidden md:flex items-center gap-4">
                 <button
-                  onClick={handleLogout}
-                  className="text-slate-400 hover:text-white text-sm transition-colors"
+                  onClick={() => setShowRulesModal(true)}
+                  className="text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
                 >
-                  Logout
+                  📖 Rules
                 </button>
+                <button
+                  onClick={() => setShowSportsModal(true)}
+                  className="text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
+                >
+                  🏟️ Sports
+                </button>
+                <button
+                  onClick={() => setShowUserSettings(true)}
+                  className="flex items-center gap-1.5 text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
+                >
+                  <Settings size={14} />
+                  Settings
+                </button>
+                <div className="flex items-center gap-3">
+                  <span className="text-slate-300 text-sm">{getUserDisplayName(currentUser)}</span>
+                  <button
+                    onClick={handleLogout}
+                    className="text-slate-400 hover:text-white text-sm transition-colors"
+                  >
+                    Logout
+                  </button>
+                </div>
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                  {getUserInitials(currentUser)}
+                </div>
               </div>
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                {getUserInitials(currentUser)}
+              {/* Mobile nav — visible below md */}
+              <div className="flex md:hidden items-center gap-2">
+                <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                  {getUserInitials(currentUser)}
+                </div>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowMobileMenu(v => !v)}
+                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-md transition-colors"
+                    aria-label="Menu"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><rect y="3" width="20" height="2" rx="1"/><rect y="9" width="20" height="2" rx="1"/><rect y="15" width="20" height="2" rx="1"/></svg>
+                  </button>
+                  {showMobileMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowMobileMenu(false)} />
+                      <div className="absolute right-0 top-full mt-1 w-44 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-20 overflow-hidden">
+                        <button onClick={() => { setShowRulesModal(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2">📖 Rules</button>
+                        <button onClick={() => { setShowSportsModal(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2">🏟️ Sports</button>
+                        <button onClick={() => { setShowUserSettings(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"><Settings size={14} /> Settings</button>
+                        <div className="border-t border-slate-700">
+                          <div className="px-4 py-2 text-xs text-slate-500">{getUserDisplayName(currentUser)}</div>
+                          <button onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm text-slate-400 hover:bg-slate-700 hover:text-red-400 transition-colors">Logout</button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -134,7 +167,7 @@ const LeagueView = (props) => {
             </button>
             <div className="flex items-center gap-3">
               <div className="text-3xl">{selectedLeague?.image}</div>
-              <h2 className="text-2xl font-bold text-white">{selectedLeague?.name}</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-white">{selectedLeague?.name}</h2>
             </div>
           </div>
 
@@ -196,14 +229,14 @@ const LeagueView = (props) => {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
             {/* View Draft Button - If draft started */}
             {selectedLeague?.draftStarted && !isDraftComplete && (
               <button
                 onClick={() => setCurrentView('draft')}
-                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-lg shadow-blue-500/20"
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2.5 md:px-6 md:py-3 rounded-lg font-semibold transition-all shadow-lg shadow-blue-500/20"
               >
-                <Plus size={20} />
+                <Plus size={18} />
                 View Draft
               </button>
             )}
@@ -212,9 +245,9 @@ const LeagueView = (props) => {
             {isCommissioner && !selectedLeague?.draftStarted && (
               <button
                 onClick={() => setShowStartDraftConfirmation(true)}
-                className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-lg shadow-green-500/20"
+                className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-4 py-2.5 md:px-6 md:py-3 rounded-lg font-semibold transition-all shadow-lg shadow-green-500/20"
               >
-                <Plus size={20} />
+                <Plus size={18} />
                 Start Draft
               </button>
             )}
@@ -235,7 +268,7 @@ const LeagueView = (props) => {
                 });
                 setShowDraftSettingsModal(true);
               }}
-              className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg font-semibold transition-all"
+              className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2.5 md:px-6 md:py-3 rounded-lg font-semibold transition-all"
             >
               Draft Settings
             </button>
@@ -256,9 +289,9 @@ const LeagueView = (props) => {
               allSportsAssigned && (
               <button
                 onClick={() => { setCompleteError(''); setShowCompleteConfirm(true); }}
-                className="flex items-center gap-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/50 px-4 py-3 rounded-lg font-semibold transition-all"
+                className="flex items-center gap-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/50 px-4 py-2.5 md:px-4 md:py-3 rounded-lg font-semibold transition-all"
               >
-                Mark League Complete
+                <span className="hidden sm:inline">Mark League </span>Complete
               </button>
             )}
           </div>
@@ -266,19 +299,21 @@ const LeagueView = (props) => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-3 md:px-6 py-4 md:py-8">
         {/* Tabs */}
-        <div className="flex gap-2 border-b border-slate-700/50 mb-6">
-          <TabButton label="Standings" isActive={leagueTab === 'standings'} onClick={() => setLeagueTab('standings')} />
-          {/* Only show Big Board if draft has started */}
-          {selectedLeague?.draftStarted && (
-            <TabButton label="Big Board" isActive={leagueTab === 'big-board'} onClick={() => setLeagueTab('big-board')} />
-          )}
-          {/* Only show Draft Results if draft is COMPLETE */}
-          {selectedLeague?.draftStarted && draftBoard.length >= (selectedLeague.members * selectedLeague.draftRounds) && (
-            <TabButton label="Draft Results" isActive={leagueTab === 'draft-results'} onClick={() => setLeagueTab('draft-results')} />
-          )}
-          <TabButton label="My Roster" isActive={leagueTab === 'my-roster'} onClick={() => setLeagueTab('my-roster')} />
+        <div className="overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
+          <div className="flex gap-2 border-b border-slate-700/50 mb-6 min-w-max md:min-w-0">
+            <TabButton label="Standings" isActive={leagueTab === 'standings'} onClick={() => setLeagueTab('standings')} />
+            {/* Only show Big Board if draft has started */}
+            {selectedLeague?.draftStarted && (
+              <TabButton label="Big Board" isActive={leagueTab === 'big-board'} onClick={() => setLeagueTab('big-board')} />
+            )}
+            {/* Only show Draft Results if draft is COMPLETE */}
+            {selectedLeague?.draftStarted && draftBoard.length >= (selectedLeague.members * selectedLeague.draftRounds) && (
+              <TabButton label="Draft Results" isActive={leagueTab === 'draft-results'} onClick={() => setLeagueTab('draft-results')} />
+            )}
+            <TabButton label="My Roster" isActive={leagueTab === 'my-roster'} onClick={() => setLeagueTab('my-roster')} />
+          </div>
         </div>
 
         {/* Standings Tab */}
@@ -327,125 +362,191 @@ const LeagueView = (props) => {
                     WorldCup: 'WC', F1: 'F1', Golf: 'Golf',
                     MensTennis: 'ATP', WomensTennis: 'WTA',
                   };
-                  const colTemplate = `56px minmax(180px,1fr) 72px 72px ${sports.map(() => '72px').join(' ')}`;
-                  return (
-                    <div className="overflow-x-auto rounded-xl">
-                      <div style={{ minWidth: `${56 + 180 + 72 + 72 + sports.length * 72 + 32}px` }}>
-                        {/* Header */}
-                        <div
-                          className="grid gap-2 px-4 py-2 text-xs font-semibold text-slate-400 uppercase bg-slate-800/50 rounded-t-xl"
-                          style={{ gridTemplateColumns: colTemplate }}
-                        >
-                          <div>Rank</div>
-                          <div>Team</div>
-                          <div className="text-center">Pts</div>
-                          <div className="text-center">EP</div>
-                          {sports.map(sport => (
-                            <div key={sport} className="text-center">{SPORT_ABBREV[sport] || sport}</div>
-                          ))}
-                        </div>
 
-                        {/* Rows */}
+                  return (
+                    <>
+                      {/* Mobile collapsed standings */}
+                      <div className="md:hidden space-y-1">
                         {standings.map((team) => {
                           const teamEP = (supabasePicks || [])
                             .filter(p => p.picker_email?.toLowerCase() === team.email?.toLowerCase())
                             .reduce((sum, p) => sum + (getExpectedPoints(p.sport, p.team_name) || 0), 0);
-
+                          const isExpanded = expandedStandingsEmail === team.email;
+                          const rankColor = team.rank === 1 ? 'text-yellow-500' : team.rank <= 3 ? 'text-slate-400' : 'text-slate-500';
                           return (
-                            <div
-                              key={team.email || team.teamName}
-                              className={`grid gap-2 items-center px-4 py-4 mt-1 rounded-xl transition-all ${
-                                team.isUser
-                                  ? 'bg-blue-500/10 border-2 border-blue-500/30'
-                                  : 'bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50'
-                              }`}
-                              style={{ gridTemplateColumns: colTemplate }}
-                            >
-                              {/* Rank */}
-                              <div className="flex flex-col items-start">
-                                <span className={`text-2xl font-bold ${
-                                  team.rank === 1 ? 'text-yellow-500' :
-                                  team.rank <= 3 ? 'text-slate-400' :
-                                  'text-slate-500'
-                                }`}>
-                                  {team.rank}
-                                </span>
-                                {(() => {
-                                  const change = getRankChange(team.rank, team.previousRank);
-                                  if (!change) return null;
-                                  return (
-                                    <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${change.color}`}>
-                                      {change.icon} {change.text}
-                                    </span>
-                                  );
-                                })()}
-                              </div>
-
-                              {/* Team */}
-                              <div className="min-w-0">
-                                <div className="font-bold text-white truncate">{team.teamName}</div>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {team.isCommissioner && (
-                                    <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded font-semibold whitespace-nowrap">
-                                      Commissioner
-                                    </span>
-                                  )}
-                                  {!team.hasAccount && (
-                                    <span className="text-xs px-2 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded whitespace-nowrap">
-                                      Invited
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Total Points */}
-                              <div className="text-center">
-                                <div className="text-lg font-bold text-white">{team.totalPoints}</div>
-                              </div>
-
-                              {/* Total EP */}
-                              <div className="text-center">
-                                {teamEP > 0
-                                  ? <span className="text-amber-400 text-sm">~{Math.round(teamEP * 10) / 10}</span>
-                                  : <span className="text-slate-600 text-sm">-</span>
-                                }
-                              </div>
-
-                              {/* Per-sport earned points */}
-                              {sports.map(sport => {
-                                const sportPicks = (supabasePicks || []).filter(p =>
-                                  p.picker_email?.toLowerCase() === team.email?.toLowerCase() &&
-                                  p.sport === sport
-                                );
-                                if (sportPicks.length === 0) {
-                                  return <div key={sport} className="text-center text-slate-600 text-sm">-</div>;
-                                }
-                                const sportComplete = sportResults?.[sport]?.is_complete;
-                                const earned = sportPicks.reduce((sum, p) => sum + (calculatePickPoints(p, sportResults) || 0), 0);
-                                if (sportComplete) {
-                                  return (
-                                    <div key={sport} className="text-center">
-                                      {earned > 0
-                                        ? <span className="text-green-400 font-bold text-sm">+{earned}</span>
-                                        : <span className="text-slate-500 text-sm">0</span>
-                                      }
-                                    </div>
-                                  );
-                                }
-                                return (
-                                  <div key={sport} className="text-center">
-                                    {resultsLoading
-                                      ? <div className="h-4 w-8 bg-slate-700 rounded animate-pulse mx-auto" />
-                                      : <span className="text-slate-600 text-sm">-</span>
-                                    }
+                            <div key={team.email || team.teamName}>
+                              <div
+                                className={`flex items-center gap-3 px-3 py-3 cursor-pointer transition-all ${
+                                  team.isUser
+                                    ? 'bg-blue-500/10 border-2 border-blue-500/30'
+                                    : 'bg-slate-800/50 border border-slate-700/50'
+                                } ${isExpanded ? 'rounded-t-xl' : 'rounded-xl'}`}
+                                onClick={() => setExpandedStandingsEmail(isExpanded ? null : team.email)}
+                              >
+                                <span className={`text-xl font-bold w-8 text-center shrink-0 ${rankColor}`}>{team.rank}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-bold text-white truncate">{team.teamName}</div>
+                                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                    {team.isCommissioner && (
+                                      <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded font-semibold">Commissioner</span>
+                                    )}
+                                    {!team.hasAccount && (
+                                      <span className="text-xs px-1.5 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded">Invited</span>
+                                    )}
                                   </div>
-                                );
-                              })}
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <div className="text-lg font-bold text-white">{team.totalPoints}<span className="text-xs text-slate-400 ml-1">pts</span></div>
+                                  {teamEP > 0 && <div className="text-xs text-amber-400">~{Math.round(teamEP * 10) / 10} EP</div>}
+                                </div>
+                                <span className="text-slate-500 text-xs shrink-0 ml-1">{isExpanded ? '▲' : '▼'}</span>
+                              </div>
+                              {isExpanded && (
+                                <div className={`border border-t-0 rounded-b-xl px-3 py-2 mb-1 ${
+                                  team.isUser ? 'bg-blue-500/5 border-blue-500/30' : 'bg-slate-900/60 border-slate-700/50'
+                                }`}>
+                                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 pt-1">
+                                    {sports.map(sport => {
+                                      const pick = (supabasePicks || []).find(p =>
+                                        p.picker_email?.toLowerCase() === team.email?.toLowerCase() && p.sport === sport
+                                      );
+                                      const pts = pick ? calculatePickPoints(pick, sportResults) : null;
+                                      return (
+                                        <div key={sport} className="text-center">
+                                          <div className="text-[10px] text-slate-500 uppercase">{SPORT_ABBREV[sport] || sport}</div>
+                                          <div className={`text-sm font-bold ${pts > 0 ? 'text-green-400' : pts === 0 ? 'text-slate-500' : 'text-slate-400'}`}>
+                                            {pts === null ? '…' : pts > 0 ? `+${pts}` : '—'}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
                       </div>
-                    </div>
+
+                      {/* Desktop full standings table */}
+                      <div className="hidden md:block overflow-x-auto rounded-xl">
+                        <div style={{ minWidth: `${56 + 180 + 72 + 72 + sports.length * 72 + 32}px` }}>
+                          {/* Header */}
+                          <div
+                            className="grid gap-2 px-4 py-2 text-xs font-semibold text-slate-400 uppercase bg-slate-800/50 rounded-t-xl"
+                            style={{ gridTemplateColumns: `56px minmax(180px,1fr) 72px 72px ${sports.map(() => '72px').join(' ')}` }}
+                          >
+                            <div>Rank</div>
+                            <div>Team</div>
+                            <div className="text-center">Pts</div>
+                            <div className="text-center">EP</div>
+                            {sports.map(sport => (
+                              <div key={sport} className="text-center">{SPORT_ABBREV[sport] || sport}</div>
+                            ))}
+                          </div>
+
+                          {/* Rows */}
+                          {standings.map((team) => {
+                            const teamEP = (supabasePicks || [])
+                              .filter(p => p.picker_email?.toLowerCase() === team.email?.toLowerCase())
+                              .reduce((sum, p) => sum + (getExpectedPoints(p.sport, p.team_name) || 0), 0);
+
+                            return (
+                              <div
+                                key={team.email || team.teamName}
+                                className={`grid gap-2 items-center px-4 py-4 mt-1 rounded-xl transition-all ${
+                                  team.isUser
+                                    ? 'bg-blue-500/10 border-2 border-blue-500/30'
+                                    : 'bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50'
+                                }`}
+                                style={{ gridTemplateColumns: `56px minmax(180px,1fr) 72px 72px ${sports.map(() => '72px').join(' ')}` }}
+                              >
+                                {/* Rank */}
+                                <div className="flex flex-col items-start">
+                                  <span className={`text-2xl font-bold ${
+                                    team.rank === 1 ? 'text-yellow-500' :
+                                    team.rank <= 3 ? 'text-slate-400' :
+                                    'text-slate-500'
+                                  }`}>
+                                    {team.rank}
+                                  </span>
+                                  {(() => {
+                                    const change = getRankChange(team.rank, team.previousRank);
+                                    if (!change) return null;
+                                    return (
+                                      <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${change.color}`}>
+                                        {change.icon} {change.text}
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
+
+                                {/* Team */}
+                                <div className="min-w-0">
+                                  <div className="font-bold text-white truncate">{team.teamName}</div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {team.isCommissioner && (
+                                      <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded font-semibold whitespace-nowrap">
+                                        Commissioner
+                                      </span>
+                                    )}
+                                    {!team.hasAccount && (
+                                      <span className="text-xs px-2 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded whitespace-nowrap">
+                                        Invited
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Total Points */}
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-white">{team.totalPoints}</div>
+                                </div>
+
+                                {/* Total EP */}
+                                <div className="text-center">
+                                  {teamEP > 0
+                                    ? <span className="text-amber-400 text-sm">~{Math.round(teamEP * 10) / 10}</span>
+                                    : <span className="text-slate-600 text-sm">-</span>
+                                  }
+                                </div>
+
+                                {/* Per-sport earned points */}
+                                {sports.map(sport => {
+                                  const sportPicks = (supabasePicks || []).filter(p =>
+                                    p.picker_email?.toLowerCase() === team.email?.toLowerCase() &&
+                                    p.sport === sport
+                                  );
+                                  if (sportPicks.length === 0) {
+                                    return <div key={sport} className="text-center text-slate-600 text-sm">-</div>;
+                                  }
+                                  const sportComplete = sportResults?.[sport]?.is_complete;
+                                  const earned = sportPicks.reduce((sum, p) => sum + (calculatePickPoints(p, sportResults) || 0), 0);
+                                  if (sportComplete) {
+                                    return (
+                                      <div key={sport} className="text-center">
+                                        {earned > 0
+                                          ? <span className="text-green-400 font-bold text-sm">+{earned}</span>
+                                          : <span className="text-slate-500 text-sm">0</span>
+                                        }
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div key={sport} className="text-center">
+                                      {resultsLoading
+                                        ? <div className="h-4 w-8 bg-slate-700 rounded animate-pulse mx-auto" />
+                                        : <span className="text-slate-600 text-sm">-</span>
+                                      }
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
                   );
                 })()}
               </>
@@ -779,9 +880,9 @@ const LeagueView = (props) => {
       {showSportsModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-slate-800 rounded-2xl max-w-6xl w-full border border-slate-700 shadow-2xl">
-            <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+            <div className="p-3 md:p-6 border-b border-slate-700 flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-white">Sports</h2>
+                <h2 className="text-xl md:text-2xl font-bold text-white">Sports</h2>
                 <p className="text-sm text-slate-400 mt-1">General catalog across all supported sports.</p>
               </div>
               <div className="flex items-center gap-2">
@@ -790,8 +891,8 @@ const LeagueView = (props) => {
                 </button>
               </div>
             </div>
-            <div className="p-6">
-              <div className="mb-4 flex flex-col lg:flex-row gap-2">
+            <div className="p-3 md:p-6">
+              <div className="mb-4 flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   value={sportsSearch}
@@ -826,8 +927,8 @@ const LeagueView = (props) => {
                 </button>
               </div>
 
-              <div className="max-h-[560px] overflow-y-auto rounded-lg border border-slate-700/50">
-                <div className="grid grid-cols-[minmax(0,1fr)_120px_140px] gap-0 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-100 bg-slate-700 border-b border-slate-600 sticky top-0 z-10">
+              <div className="max-h-[55vh] md:max-h-[560px] overflow-y-auto rounded-lg border border-slate-700/50">
+                <div className="grid grid-cols-[minmax(0,1fr)_90px_90px] md:grid-cols-[minmax(0,1fr)_120px_140px] gap-0 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-100 bg-slate-700 border-b border-slate-600 sticky top-0 z-10">
                   <div>Team</div>
                   <div>Sport</div>
                   <div>EP</div>
@@ -843,7 +944,7 @@ const LeagueView = (props) => {
                 ) : (
                   <>
                     {leagueSportsRows.map((row) => (
-                      <div key={`league-sports-row-${row.sport}-${row.team}`} className="grid grid-cols-[minmax(0,1fr)_120px_140px] gap-0 items-center px-3 py-2 border-b border-slate-700/40 text-left text-white bg-slate-900/65">
+                      <div key={`league-sports-row-${row.sport}-${row.team}`} className="grid grid-cols-[minmax(0,1fr)_90px_90px] md:grid-cols-[minmax(0,1fr)_120px_140px] gap-0 items-center px-3 py-2 border-b border-slate-700/40 text-left text-white bg-slate-900/65">
                         <div className="font-semibold truncate pr-2">
                           <button
                             className="text-left hover:text-amber-300 transition-colors truncate w-full"
