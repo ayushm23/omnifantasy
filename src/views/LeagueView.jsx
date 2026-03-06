@@ -1,0 +1,1444 @@
+import React, { useMemo, useRef, useState } from 'react';
+import { Plus, X, ArrowLeft, Trash2, Settings } from 'lucide-react';
+import { getCurrentPickerFromState, picksUntilTurn } from '../utils/draft';
+import { calculatePickPoints } from '../utils/points';
+import { getSportDisplayCode, getSportNameByCode } from '../config/sports';
+import { getUserInitials, getUserDisplayName } from '../utils/userDisplay';
+import { formatHourLabel } from '../utils/format';
+import TeamPopup from '../components/TeamPopup';
+import SportBadge from '../components/SportBadge';
+import EmptyState from '../components/EmptyState';
+import TabButton from '../components/TabButton';
+import ConfirmModal from '../components/ConfirmModal';
+import RulesModal from '../components/RulesModal';
+import TimerDisplay from '../components/TimerDisplay';
+import { useAppContext } from '../context/AppContext';
+
+const LeagueView = (props) => {
+  const {
+    deleteLeague, setDraftOrderSettings, draftOrderSettings,
+    setShowDraftSettingsModal, setShowStartDraftConfirmation,
+    leagueTab, setLeagueTab, standings, getRankChange, draftBoard,
+    updateLeague, reloadLeagues,
+    showDraftSettingsModal, showStartDraftConfirmation, startDraft,
+    resultsError, retryResults, setShowUserSettings, showUserSettings,
+  } = props;
+
+  const {
+    selectedLeague, currentUser, setShowRulesModal, handleLogout, backToHome,
+    getSportColor, formatPick, getExpectedPoints, hasNoEPData, myRoster,
+    selectedLeagueId, showRulesModal, supabasePicks, supabaseDraftState, setCurrentView,
+    sportResults, resultsLoading, refreshExpectedPoints,
+    receiveOtcEmails, setReceiveOtcEmails, draftSettings, onUpdateDraftSettings,
+    timeRemaining, isTimerPaused,
+    getDraftPoolForSport, allSportCodes, epLoading,
+  } = useAppContext();
+  const isCommissioner = selectedLeague?.commissionerEmail === currentUser?.email;
+  const [showSportsModal, setShowSportsModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+  const [completeError, setCompleteError] = useState('');
+  const [sportsSearch, setSportsSearch] = useState('');
+  const [sportsFilter, setSportsFilter] = useState('ALL');
+  const [sportsSortBy, setSportsSortBy] = useState('ep');
+  const [sportsSortDir, setSportsSortDir] = useState('desc');
+  const [selectedTeamInfo, setSelectedTeamInfo] = useState(null); // { sport, team, currentEP } | null
+  const teamInfoFromSportsRef = useRef(false); // true when popup was opened from the sports catalog modal
+  const leagueSportsRows = useMemo(() => {
+    const search = sportsSearch.trim().toLowerCase();
+    const rows = (allSportCodes || []).flatMap((sport) => {
+      const teams = getDraftPoolForSport(sport);
+      return teams.map((team) => ({
+        sport,
+        team,
+        ep: getExpectedPoints(sport, team),
+      }));
+    });
+
+    const filtered = rows.filter((row) => {
+      if (sportsFilter !== 'ALL' && row.sport !== sportsFilter) return false;
+      if (search && !`${row.team}`.toLowerCase().includes(search)) return false;
+      return true;
+    });
+
+    return [...filtered].sort((a, b) => {
+      let cmp = 0;
+      if (sportsSortBy === 'ep') {
+        const aEP = a.ep ?? Number.NEGATIVE_INFINITY;
+        const bEP = b.ep ?? Number.NEGATIVE_INFINITY;
+        cmp = aEP === bEP ? a.team.localeCompare(b.team) : aEP - bEP;
+      } else {
+        cmp = a.team.localeCompare(b.team);
+      }
+      return sportsSortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [allSportCodes, getDraftPoolForSport, getExpectedPoints, sportsSearch, sportsFilter, sportsSortBy, sportsSortDir]);
+  const totalExpectedPicks = (selectedLeague?.members || 0) * (selectedLeague?.draftRounds || 0);
+  const isDraftComplete = totalExpectedPicks > 0 && (supabasePicks?.length || 0) >= totalExpectedPicks;
+  const allSportsAssigned = !resultsLoading &&
+    Array.isArray(selectedLeague?.sports) &&
+    selectedLeague.sports.length > 0 &&
+    selectedLeague.sports.every((sportCode) => sportResults?.[sportCode]?.is_complete === true);
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      {/* Header */}
+      <div className="bg-slate-800/60 backdrop-blur-sm border-b border-slate-700 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          {/* Top row - Branding and User */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">🏆</div>
+              <h1 className="text-2xl font-bold text-white">OmniFantasy</h1>
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowRulesModal(true)}
+                className="text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
+              >
+                📖 Rules
+              </button>
+              <button
+                onClick={() => setShowSportsModal(true)}
+                className="text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
+              >
+                🏟️ Sports
+              </button>
+              <button
+                onClick={() => setShowUserSettings(true)}
+                className="flex items-center gap-1.5 text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
+              >
+                <Settings size={14} />
+                Settings
+              </button>
+
+              <div className="flex items-center gap-3">
+                <span className="text-slate-300 text-sm">{getUserDisplayName(currentUser)}</span>
+                <button
+                  onClick={handleLogout}
+                  className="text-slate-400 hover:text-white text-sm transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                {getUserInitials(currentUser)}
+              </div>
+            </div>
+          </div>
+
+          {/* League info row */}
+          <div className="flex items-center gap-4 mb-4">
+            <button onClick={backToHome} className="text-slate-400 hover:text-white transition-colors">
+              <ArrowLeft size={24} />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">{selectedLeague?.image}</div>
+              <h2 className="text-2xl font-bold text-white">{selectedLeague?.name}</h2>
+            </div>
+          </div>
+
+          {/* League details */}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-4">
+            <span className="text-sm text-slate-400">
+              {selectedLeague?.draftStarted
+                ? (() => {
+                    const totalExpected = (selectedLeague?.members || 0) * (selectedLeague?.draftRounds || 0);
+                    const isDraftComplete = totalExpected > 0 && (supabasePicks?.length || 0) >= totalExpected;
+                    if (isDraftComplete) {
+                      return `Drafted: ${selectedLeague.draftDate}`;
+                    }
+                    const picker = getCurrentPickerFromState(supabaseDraftState);
+                    const isMyTurn = picker?.email === currentUser?.email;
+                    const hasTimer = selectedLeague?.draftTimer && selectedLeague.draftTimer !== 'none';
+                    return (
+                      <>
+                        <span className="text-yellow-400 font-semibold">Draft in progress</span>
+                        {isMyTurn ? (
+                          <span className="text-green-400 font-semibold ml-2 inline-flex items-center gap-1.5">
+                            Your turn!
+                            {hasTimer && (
+                              <TimerDisplay
+                                compact
+                                timeRemaining={timeRemaining}
+                                isPaused={isTimerPaused}
+                                pauseEndHour={selectedLeague?.timerPauseEndHour ?? 8}
+                              />
+                            )}
+                          </span>
+                        ) : (() => {
+                          const n = picksUntilTurn({
+                            myEmail: currentUser?.email,
+                            draftOrder: supabaseDraftState?.draftOrder || [],
+                            currentPick: supabaseDraftState?.currentPick || 1,
+                            currentRound: supabaseDraftState?.currentRound || 1,
+                            isSnake: supabaseDraftState?.isSnake,
+                            thirdRoundReversal: supabaseDraftState?.thirdRoundReversal,
+                          });
+                          return n != null
+                            ? <span className="text-slate-400 ml-2">{n} pick{n !== 1 ? 's' : ''} until your turn</span>
+                            : null;
+                        })()}
+                      </>
+                    );
+                  })()
+                : 'Draft not started'}
+            </span>
+            <span className="text-sm text-slate-400">{selectedLeague?.members} Teams</span>
+            <span className="text-sm text-slate-400">{selectedLeague?.draftRounds} Rounds</span>
+          </div>
+
+          {/* Sports Pills */}
+          <div className="flex flex-wrap gap-2 mb-5">
+            {selectedLeague?.sports.map(sport => (
+              <SportBadge key={sport} sport={sport} size="pill" />
+            ))}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-3">
+            {/* View Draft Button - If draft started */}
+            {selectedLeague?.draftStarted && !isDraftComplete && (
+              <button
+                onClick={() => setCurrentView('draft')}
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-lg shadow-blue-500/20"
+              >
+                <Plus size={20} />
+                View Draft
+              </button>
+            )}
+
+            {/* Start Draft - Commissioner only */}
+            {isCommissioner && !selectedLeague?.draftStarted && (
+              <button
+                onClick={() => setShowStartDraftConfirmation(true)}
+                className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-lg shadow-green-500/20"
+              >
+                <Plus size={20} />
+                Start Draft
+              </button>
+            )}
+
+            {/* Draft Settings - Visible to all members */}
+            <button
+              onClick={() => {
+                setDraftOrderSettings({
+                  ...draftOrderSettings,
+                  draftRounds: selectedLeague?.draftRounds || 8,
+                  sendOTCEmails: !!selectedLeague?.sendOTCEmails,
+                  draftTimer: selectedLeague?.draftTimer || 'none',
+                  timerPauseEnabled: (selectedLeague?.timerPauseStartHour ?? 0) !== (selectedLeague?.timerPauseEndHour ?? 8),
+                  timerPauseStartHour: selectedLeague?.timerPauseStartHour ?? 0,
+                  timerPauseEndHour: selectedLeague?.timerPauseEndHour ?? 8,
+                  thirdRoundReversal: !!draftOrderSettings.thirdRoundReversal,
+                  draftEverySportRequired: draftOrderSettings.draftEverySportRequired !== false
+                });
+                setShowDraftSettingsModal(true);
+              }}
+              className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg font-semibold transition-all"
+            >
+              Draft Settings
+            </button>
+
+            {/* Delete League Button - Only for Commissioner, only before draft starts */}
+            {isCommissioner && !selectedLeague?.draftStarted && (
+              <button
+                onClick={() => { setDeleteError(''); setShowDeleteConfirm(true); }}
+                className="flex items-center gap-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 hover:border-red-500/50 px-4 py-3 rounded-lg font-semibold transition-all"
+              >
+                <Trash2 size={18} />
+                Delete League
+              </button>
+            )}
+
+            {selectedLeague?.commissionerEmail === currentUser?.email &&
+              selectedLeague?.status !== 'completed' &&
+              allSportsAssigned && (
+              <button
+                onClick={() => { setCompleteError(''); setShowCompleteConfirm(true); }}
+                className="flex items-center gap-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/50 px-4 py-3 rounded-lg font-semibold transition-all"
+              >
+                Mark League Complete
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-slate-700/50 mb-6">
+          <TabButton label="Standings" isActive={leagueTab === 'standings'} onClick={() => setLeagueTab('standings')} />
+          {/* Only show Big Board if draft has started */}
+          {selectedLeague?.draftStarted && (
+            <TabButton label="Big Board" isActive={leagueTab === 'big-board'} onClick={() => setLeagueTab('big-board')} />
+          )}
+          {/* Only show Draft Results if draft is COMPLETE */}
+          {selectedLeague?.draftStarted && draftBoard.length >= (selectedLeague.members * selectedLeague.draftRounds) && (
+            <TabButton label="Draft Results" isActive={leagueTab === 'draft-results'} onClick={() => setLeagueTab('draft-results')} />
+          )}
+          <TabButton label="My Roster" isActive={leagueTab === 'my-roster'} onClick={() => setLeagueTab('my-roster')} />
+        </div>
+
+        {/* Standings Tab */}
+        {leagueTab === 'standings' && (
+          <div className="space-y-4">
+            {standings.length === 0 ? (
+              <EmptyState icon="📋" title="No Standings Yet" description="Standings will appear once the draft is complete." />
+            ) : (
+              <>
+                {/* Commissioner Notice if not participating */}
+                {selectedLeague && !standings.some(s => s.isCommissioner) && (
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-blue-400 font-semibold">ℹ️ Commissioner:</span>
+                      <span className="text-slate-300">
+                        {selectedLeague.commissionerEmail} (not participating in draft)
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Results fetch error banner */}
+                {resultsError && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center justify-between gap-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-red-400">⚠️</span>
+                      <span className="text-red-300">Could not load results data. Points may be incomplete.</span>
+                    </div>
+                    {retryResults && (
+                      <button
+                        onClick={retryResults}
+                        className="shrink-0 text-xs px-2.5 py-1 rounded border border-red-500/50 text-red-300 hover:bg-red-500/20 transition-colors"
+                      >
+                        Retry
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Scrollable standings table */}
+                {(() => {
+                  const sports = selectedLeague?.sports || [];
+                  const SPORT_ABBREV = {
+                    NFL: 'NFL', NBA: 'NBA', MLB: 'MLB', NHL: 'NHL',
+                    NCAAF: 'CFB', NCAAMB: 'CBB', UCL: 'UCL', Euro: 'Euro',
+                    WorldCup: 'WC', F1: 'F1', Golf: 'Golf',
+                    MensTennis: 'ATP', WomensTennis: 'WTA',
+                  };
+                  const colTemplate = `56px minmax(180px,1fr) 72px 72px ${sports.map(() => '72px').join(' ')}`;
+                  return (
+                    <div className="overflow-x-auto rounded-xl">
+                      <div style={{ minWidth: `${56 + 180 + 72 + 72 + sports.length * 72 + 32}px` }}>
+                        {/* Header */}
+                        <div
+                          className="grid gap-2 px-4 py-2 text-xs font-semibold text-slate-400 uppercase bg-slate-800/50 rounded-t-xl"
+                          style={{ gridTemplateColumns: colTemplate }}
+                        >
+                          <div>Rank</div>
+                          <div>Team</div>
+                          <div className="text-center">Pts</div>
+                          <div className="text-center">EP</div>
+                          {sports.map(sport => (
+                            <div key={sport} className="text-center">{SPORT_ABBREV[sport] || sport}</div>
+                          ))}
+                        </div>
+
+                        {/* Rows */}
+                        {standings.map((team) => {
+                          const teamEP = (supabasePicks || [])
+                            .filter(p => p.picker_email?.toLowerCase() === team.email?.toLowerCase())
+                            .reduce((sum, p) => sum + (getExpectedPoints(p.sport, p.team_name) || 0), 0);
+
+                          return (
+                            <div
+                              key={team.email || team.teamName}
+                              className={`grid gap-2 items-center px-4 py-4 mt-1 rounded-xl transition-all ${
+                                team.isUser
+                                  ? 'bg-blue-500/10 border-2 border-blue-500/30'
+                                  : 'bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50'
+                              }`}
+                              style={{ gridTemplateColumns: colTemplate }}
+                            >
+                              {/* Rank */}
+                              <div className="flex flex-col items-start">
+                                <span className={`text-2xl font-bold ${
+                                  team.rank === 1 ? 'text-yellow-500' :
+                                  team.rank <= 3 ? 'text-slate-400' :
+                                  'text-slate-500'
+                                }`}>
+                                  {team.rank}
+                                </span>
+                                {(() => {
+                                  const change = getRankChange(team.rank, team.previousRank);
+                                  if (!change) return null;
+                                  return (
+                                    <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${change.color}`}>
+                                      {change.icon} {change.text}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+
+                              {/* Team */}
+                              <div className="min-w-0">
+                                <div className="font-bold text-white truncate">{team.teamName}</div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {team.isCommissioner && (
+                                    <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded font-semibold whitespace-nowrap">
+                                      Commissioner
+                                    </span>
+                                  )}
+                                  {!team.hasAccount && (
+                                    <span className="text-xs px-2 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded whitespace-nowrap">
+                                      Invited
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Total Points */}
+                              <div className="text-center">
+                                <div className="text-lg font-bold text-white">{team.totalPoints}</div>
+                              </div>
+
+                              {/* Total EP */}
+                              <div className="text-center">
+                                {teamEP > 0
+                                  ? <span className="text-amber-400 text-sm">~{Math.round(teamEP * 10) / 10}</span>
+                                  : <span className="text-slate-600 text-sm">-</span>
+                                }
+                              </div>
+
+                              {/* Per-sport earned points */}
+                              {sports.map(sport => {
+                                const sportPicks = (supabasePicks || []).filter(p =>
+                                  p.picker_email?.toLowerCase() === team.email?.toLowerCase() &&
+                                  p.sport === sport
+                                );
+                                if (sportPicks.length === 0) {
+                                  return <div key={sport} className="text-center text-slate-600 text-sm">-</div>;
+                                }
+                                const sportComplete = sportResults?.[sport]?.is_complete;
+                                const earned = sportPicks.reduce((sum, p) => sum + (calculatePickPoints(p, sportResults) || 0), 0);
+                                if (sportComplete) {
+                                  return (
+                                    <div key={sport} className="text-center">
+                                      {earned > 0
+                                        ? <span className="text-green-400 font-bold text-sm">+{earned}</span>
+                                        : <span className="text-slate-500 text-sm">0</span>
+                                      }
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div key={sport} className="text-center">
+                                    {resultsLoading
+                                      ? <div className="h-4 w-8 bg-slate-700 rounded animate-pulse mx-auto" />
+                                      : <span className="text-slate-600 text-sm">-</span>
+                                    }
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Big Board Tab */}
+        {leagueTab === 'big-board' && (
+          <div className="space-y-6">
+            {draftBoard.length === 0 ? (
+              <EmptyState icon="📋" title="No Draft Results Yet" description="The big board will show all team rosters once the draft is complete." />
+            ) : (
+              <>
+                {/* Draft Board organized by team */}
+                {standings.map((team) => {
+              const teamPicks = draftBoard.filter(pick => pick.picker_email?.toLowerCase() === team.email?.toLowerCase());
+              return (
+                <div 
+                  key={team.teamName}
+                  className={`rounded-xl overflow-hidden ${
+                    team.isUser 
+                      ? 'bg-blue-500/10 border-2 border-blue-500/30'
+                      : 'bg-slate-800/50 border border-slate-700/50'
+                  }`}
+                >
+                  {/* Team Header */}
+                  <div className="bg-gradient-to-r from-slate-700/50 to-slate-800/50 p-4 border-b border-slate-700/50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-lg font-bold text-white">{team.teamName}</h3>
+                      </div>
+                      {(() => {
+                        const teamPoints = teamPicks.reduce((sum, p) => sum + (calculatePickPoints(p, sportResults) || 0), 0);
+                        const teamEP = teamPicks.reduce((sum, p) => {
+                          const ep = getExpectedPoints(p.sport, p.team_name);
+                          return sum + (ep || 0);
+                        }, 0);
+                        const hasMissingEP = teamPicks.some(p => hasNoEPData(p.sport));
+                        return (
+                          <div className="flex items-center gap-3">
+                            {teamEP > 0 && (
+                              <div className="text-sm text-amber-400">
+                                ~{Math.round(teamEP * 10) / 10} EP
+                                {hasMissingEP && (
+                                  <span className="relative group/tip text-slate-500 ml-1 cursor-help">*<span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 pointer-events-none transition-opacity z-50">Some picks lack odds data — EP total is partial</span></span>
+                                )}
+                              </div>
+                            )}
+                            {teamPoints > 0 ? (
+                              <div className="text-xl font-bold text-green-400">{teamPoints} pts</div>
+                            ) : (
+                              <div className="text-sm text-slate-500">{teamPicks.length} picks</div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Team's Picks */}
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {teamPicks.map((pick) => {
+                      const sportColor = getSportColor(pick.sport);
+                      return (
+                        <div
+                          key={pick.pick_number}
+                          className={`rounded-lg p-3 border-2 ${sportColor}`}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <span className="text-xs text-slate-500 font-semibold">{formatPick(pick)}</span>
+                            <div className="flex items-center gap-2">
+                              {(() => {
+                                const ep = getExpectedPoints(pick.sport, pick.team_name);
+                                if (ep !== null) {
+                                  return <span className="text-xs text-amber-400">~{ep}</span>;
+                                }
+                                if (hasNoEPData(pick.sport)) {
+                                  return <span className="relative group/tip text-xs text-slate-500 cursor-help">TBD<span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 pointer-events-none transition-opacity z-50">Odds not yet available for this sport</span></span>;
+                                }
+                                return null;
+                              })()}
+                              {(() => {
+                                const pts = calculatePickPoints(pick, sportResults);
+                                return pts > 0 ? <span className="text-sm font-bold text-green-400">+{pts}</span>
+                                  : pts === null ? <span className="text-xs text-slate-600">TBD</span>
+                                  : null;
+                              })()}
+                            </div>
+                          </div>
+                          <div className="mb-1">
+                            <SportBadge sport={pick.sport} size="md" />
+                          </div>
+                          <button
+                            className="font-semibold text-white text-sm text-left hover:text-amber-300 transition-colors"
+                            onClick={() => setSelectedTeamInfo({ sport: pick.sport, team: pick.team_name, currentEP: getExpectedPoints(pick.sport, pick.team_name) })}
+                            title="View EP trend"
+                          >
+                            {pick.team_name}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Draft Results Tab */}
+        {leagueTab === 'draft-results' && (
+          <div className="space-y-4">
+            {draftBoard.length === 0 ? (
+              <EmptyState icon="🎯" title="No Draft Results Yet" description="Draft results will appear here once the draft is complete." />
+            ) : (
+              <>
+                {/* Table Header */}
+                <div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-semibold text-slate-400 uppercase bg-slate-800/50 rounded-lg">
+              <div className="col-span-1">Pick</div>
+              <div className="col-span-1">Round</div>
+              <div className="col-span-3">Drafter</div>
+              <div className="col-span-2">Sport</div>
+              <div className="col-span-3">Selection</div>
+              <div className="col-span-1 text-center">EP</div>
+              <div className="col-span-1 text-center">Pts</div>
+            </div>
+
+            {/* Draft Picks */}
+            {draftBoard.map((pick) => {
+              const sportColor = getSportColor(pick.sport);
+              return (
+                <div
+                  key={pick.pick_number}
+                  className={`grid grid-cols-12 gap-4 items-center px-4 py-3 rounded-lg transition-all ${
+                    pick.isUser
+                      ? 'bg-blue-500/10 border-2 border-blue-500/30'
+                      : 'bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50'
+                  }`}
+                >
+                  {/* Pick Number */}
+                  <div className="col-span-1">
+                    <span className="text-lg font-bold text-slate-400">{formatPick(pick)}</span>
+                  </div>
+
+                  {/* Round */}
+                  <div className="col-span-1">
+                    <span className="text-sm text-slate-500">R{pick.round}</span>
+                  </div>
+
+                  {/* Drafter */}
+                  <div className="col-span-3">
+                    <div className="font-semibold text-white">{pick.picker_name}</div>
+                  </div>
+
+                  {/* Sport */}
+                  <div className="col-span-2">
+                    <span className={`px-2 py-1 rounded border text-xs font-semibold ${sportColor}`}>
+                      {getSportDisplayCode(pick.sport)}
+                    </span>
+                  </div>
+
+                  {/* Selection */}
+                  <div className="col-span-3">
+                    <button
+                      className="text-white font-medium text-left hover:text-amber-300 transition-colors"
+                      onClick={() => setSelectedTeamInfo({ sport: pick.sport, team: pick.team_name, currentEP: getExpectedPoints(pick.sport, pick.team_name) })}
+                      title="View EP trend"
+                    >
+                      {pick.team_name}
+                    </button>
+                  </div>
+
+                  {/* Expected Points */}
+                  <div className="col-span-1 text-center">
+                    {(() => {
+                      const ep = getExpectedPoints(pick.sport, pick.team_name);
+                      if (ep !== null) {
+                        return <span className="text-amber-400 text-sm">~{ep}</span>;
+                      }
+                      if (hasNoEPData(pick.sport)) {
+                        return <span className="relative group/tip text-slate-500 text-sm cursor-help">TBD<span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 pointer-events-none transition-opacity z-50">Odds not yet available for this sport</span></span>;
+                      }
+                      return <span className="text-slate-600">-</span>;
+                    })()}
+                  </div>
+
+                  {/* Points */}
+                  <div className="col-span-1 text-center">
+                    {(() => {
+                      const pts = calculatePickPoints(pick, sportResults);
+                      if (pts > 0) return <span className="text-green-400 font-bold">+{pts}</span>;
+                      if (pts === 0) return <span className="text-slate-500">0</span>;
+                      return resultsLoading
+                        ? <div className="h-4 w-12 bg-slate-700 rounded animate-pulse" />
+                        : <span className="text-slate-600">-</span>;
+                    })()}
+                  </div>
+                </div>
+              );
+            })}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* My Roster Tab */}
+        {leagueTab === 'my-roster' && (
+          <div className="space-y-4">
+            {myRoster.length === 0 ? (
+              <EmptyState icon="📝" title="No Roster Yet" description="Your roster will appear here once you complete the draft." />
+            ) : (
+              <>
+                {/* Roster Summary */}
+                {(() => {
+                  const totalPoints = myRoster.reduce((sum, pick) => sum + (calculatePickPoints(pick, sportResults) || 0), 0);
+                  const totalEP = myRoster.reduce((sum, pick) => {
+                    const ep = getExpectedPoints(pick.sport, pick.team_name);
+                    return sum + (ep || 0);
+                  }, 0);
+                  const hasMissingEP = myRoster.some(p => hasNoEPData(p.sport));
+                  return (totalPoints > 0 || totalEP > 0) ? (
+                    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4 mb-6">
+                      <div className="flex items-center gap-6">
+                        {totalEP > 0 && (
+                          <div>
+                            <div className="text-slate-400 text-sm mb-1">Expected Points</div>
+                            <div className="text-2xl font-bold text-amber-400">
+                              ~{Math.round(totalEP * 10) / 10}
+                              {hasMissingEP && (
+                                <span className="relative group/tip text-slate-500 text-sm ml-1 cursor-help">*<span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 pointer-events-none transition-opacity z-50">Some picks lack odds data — EP total is partial</span></span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {totalPoints > 0 && (
+                          <div>
+                            <div className="text-slate-400 text-sm mb-1">Actual Points</div>
+                            <div className="text-3xl font-bold text-white">{totalPoints}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+            {/* Roster grouped by sport */}
+            {(() => {
+              // Group picks by sport, preserving draft order of first pick
+              const sportOrder = [];
+              const bySport = {};
+              myRoster.forEach((pick) => {
+                if (!bySport[pick.sport]) {
+                  sportOrder.push(pick.sport);
+                  bySport[pick.sport] = [];
+                }
+                bySport[pick.sport].push(pick);
+              });
+              return sportOrder.map((sport) => {
+                const picks = bySport[sport];
+                const sportColor = getSportColor(sport);
+                const sportEP = picks.reduce((sum, p) => sum + (getExpectedPoints(p.sport, p.team_name) || 0), 0);
+                const sportPts = picks.reduce((sum, p) => sum + (calculatePickPoints(p, sportResults) || 0), 0);
+                const sportComplete = sportResults?.[sport]?.is_complete;
+                return (
+                  <div key={sport} className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl overflow-hidden">
+                    {/* Sport header */}
+                    <div className="flex items-center justify-between px-4 py-3 bg-slate-700/30 border-b border-slate-700/50">
+                      <span className={`text-xs px-2 py-0.5 rounded border font-semibold ${sportColor}`}>
+                        {getSportDisplayCode(sport)}
+                      </span>
+                      <div className="flex items-center gap-3 text-sm">
+                        {sportEP > 0 && (
+                          <span className="text-amber-400">~{Math.round(sportEP * 10) / 10} EP</span>
+                        )}
+                        {sportComplete && sportPts > 0 && (
+                          <span className="text-green-400 font-bold">+{sportPts} pts</span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Picks */}
+                    <div className="divide-y divide-slate-700/40">
+                      {picks.map((pick) => {
+                        const ep = getExpectedPoints(pick.sport, pick.team_name);
+                        const pts = calculatePickPoints(pick, sportResults);
+                        return (
+                          <div key={pick.pick_number} className="flex items-center justify-between px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-slate-500 w-10 shrink-0">Pick {formatPick(pick)}</span>
+                              <button
+                                className="font-semibold text-white text-left hover:text-amber-300 transition-colors"
+                                onClick={() => setSelectedTeamInfo({ sport: pick.sport, team: pick.team_name, currentEP: ep })}
+                                title="View EP trend"
+                              >
+                                {pick.team_name}
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              {ep !== null ? (
+                                <span className="text-sm text-amber-400">~{ep} EP</span>
+                              ) : hasNoEPData(pick.sport) ? (
+                                <span className="relative group/tip text-sm text-slate-500 cursor-help">
+                                  TBD
+                                  <span className="pointer-events-none absolute bottom-full right-0 mb-1 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity z-50">
+                                    Odds not yet available
+                                  </span>
+                                </span>
+                              ) : null}
+                              {pts > 0 ? (
+                                <span className="text-base font-bold text-green-400">+{pts}</span>
+                              ) : pts === null && resultsLoading ? (
+                                <div className="h-4 w-10 bg-slate-700 rounded animate-pulse" />
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+              </>
+            )}
+          </div>
+        )}
+
+      {/* Sports Modal */}
+      {showSportsModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-slate-800 rounded-2xl max-w-6xl w-full border border-slate-700 shadow-2xl">
+            <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Sports</h2>
+                <p className="text-sm text-slate-400 mt-1">General catalog across all supported sports.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowSportsModal(false)} className="text-slate-400 hover:text-white transition-colors p-1 hover:bg-slate-700/50 rounded">
+                  <X size={22} />
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="mb-4 flex flex-col lg:flex-row gap-2">
+                <input
+                  type="text"
+                  value={sportsSearch}
+                  onChange={(e) => setSportsSearch(e.target.value)}
+                  placeholder="Search team or player"
+                  className="lg:flex-[2] px-3 py-2 bg-slate-900/60 border border-slate-700 rounded-lg text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                />
+                <select
+                  value={sportsFilter}
+                  onChange={(e) => setSportsFilter(e.target.value)}
+                  className="lg:flex-1 px-3 py-2 bg-slate-900/60 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                >
+                  <option value="ALL">All sports</option>
+                  {(allSportCodes || []).map((sport) => (
+                    <option key={`league-sports-modal-filter-${sport}`} value={sport}>{getSportNameByCode(sport)}</option>
+                  ))}
+                </select>
+                <select
+                  value={sportsSortBy}
+                  onChange={(e) => setSportsSortBy(e.target.value)}
+                  className="lg:flex-1 px-3 py-2 bg-slate-900/60 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                >
+                  <option value="ep">Sort: EP</option>
+                  <option value="team">Sort: Team</option>
+                </select>
+                <button
+                  onClick={() => setSportsSortDir((prev) => prev === 'desc' ? 'asc' : 'desc')}
+                  className="px-4 py-2 bg-slate-900/60 border border-slate-700 rounded-lg text-sm text-white hover:border-slate-500 transition-colors"
+                  title={sportsSortDir === 'desc' ? 'Descending' : 'Ascending'}
+                >
+                  {sportsSortDir === 'desc' ? '↓' : '↑'}
+                </button>
+              </div>
+
+              <div className="max-h-[560px] overflow-y-auto rounded-lg border border-slate-700/50">
+                <div className="grid grid-cols-[minmax(0,1fr)_120px_140px] gap-0 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-100 bg-slate-700 border-b border-slate-600 sticky top-0 z-10">
+                  <div>Team</div>
+                  <div>Sport</div>
+                  <div>EP</div>
+                </div>
+                {epLoading ? (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <div key={`skel-${i}`} className="animate-pulse flex items-center gap-3 px-3 py-2.5 border-b border-slate-700/50">
+                      <div className="h-4 bg-slate-700 rounded flex-1" />
+                      <div className="h-5 w-16 bg-slate-700 rounded-full" />
+                      <div className="h-4 w-14 bg-slate-700 rounded" />
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    {leagueSportsRows.map((row) => (
+                      <div key={`league-sports-row-${row.sport}-${row.team}`} className="grid grid-cols-[minmax(0,1fr)_120px_140px] gap-0 items-center px-3 py-2 border-b border-slate-700/40 text-left text-white bg-slate-900/65">
+                        <div className="font-semibold truncate pr-2">
+                          <button
+                            className="text-left hover:text-amber-300 transition-colors truncate w-full"
+                            onClick={() => {
+                              setShowSportsModal(false);
+                              teamInfoFromSportsRef.current = true;
+                              setSelectedTeamInfo({ sport: row.sport, team: row.team, currentEP: row.ep });
+                            }}
+                            title="View EP trend"
+                          >
+                            {row.team}
+                          </button>
+                        </div>
+                        <div>
+                          <SportBadge sport={row.sport} />
+                        </div>
+                        <div className="text-sm">
+                          {row.ep !== null ? (
+                            <span className="text-amber-400 font-medium">~{row.ep} EP</span>
+                          ) : hasNoEPData(row.sport) ? (
+                            <span className="text-slate-500">TBD</span>
+                          ) : (
+                            <span className="text-slate-500">-</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {leagueSportsRows.length === 0 && (
+                      <div className="px-3 py-6 text-center text-sm text-slate-500">
+                        No options match your filters.
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Settings Modal */}
+      {showUserSettings && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-sm border border-slate-700 shadow-2xl">
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-bold text-white">My Settings</h2>
+                <button
+                  onClick={() => setShowUserSettings(false)}
+                  className="text-slate-400 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Notifications</h3>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={receiveOtcEmails}
+                      onChange={(e) => setReceiveOtcEmails(e.target.checked)}
+                      className="mt-0.5 rounded bg-slate-900 border-slate-600"
+                    />
+                    <div>
+                      <div className="text-sm text-white">On-the-clock email notifications</div>
+                      <div className="text-xs text-slate-400 mt-0.5">Receive an email when it's your turn to pick, across all leagues</div>
+                    </div>
+                  </label>
+                </div>
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Draft Queue</h3>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!draftSettings?.autoPickFromQueue}
+                      onChange={(e) => onUpdateDraftSettings({ autoPickFromQueue: e.target.checked })}
+                      className="mt-0.5 rounded bg-slate-900 border-slate-600"
+                    />
+                    <div>
+                      <div className="text-sm text-white">Auto-pick from queue</div>
+                      <div className="text-xs text-slate-400 mt-0.5">When it's your turn to pick in any draft, automatically select the top team from your queue</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+              <div className="mt-5 pt-4 border-t border-slate-700">
+                <button
+                  onClick={() => setShowUserSettings(false)}
+                  className="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-semibold transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <RulesModal show={showRulesModal} onClose={() => setShowRulesModal(false)} />
+
+      {/* Draft Settings Modal */}
+      {showDraftSettingsModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-xl overflow-y-auto shadow-2xl max-h-[85vh]">
+            <div className="p-6 border-b border-slate-700">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">⚙️ Draft Settings</h2>
+                <button
+                  onClick={() => setShowDraftSettingsModal(false)}
+                  className="text-slate-400 hover:text-white transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              <p className="text-sm text-slate-400 mt-2">
+                {isCommissioner
+                  ? 'Configure draft settings. Timer and pause window can be updated even after draft starts.'
+                  : 'View-only. Only the commissioner can change these settings.'}
+              </p>
+              {isCommissioner && selectedLeague?.draftStarted && (
+                <p className="text-xs text-amber-300 mt-2">
+                  Draft is in progress: only timer settings can be changed.
+                </p>
+              )}
+            </div>
+
+            <fieldset disabled={!isCommissioner} className="p-6 space-y-6 disabled:opacity-60">
+              {!selectedLeague?.draftStarted && (
+                <>
+                  {/* Draft Rounds */}
+                  <div>
+                    <h3 className="text-base font-semibold text-white mb-2">
+                      Draft Rounds
+                    </h3>
+                    <p className="text-sm text-slate-400 mb-4">
+                      Must be at least number of sports. Recommended: sports + 5 flex picks.
+                    </p>
+                    <select
+                      value={draftOrderSettings.draftRounds || selectedLeague?.draftRounds || 8}
+                      onChange={(e) => setDraftOrderSettings({
+                        ...draftOrderSettings,
+                        draftRounds: parseInt(e.target.value, 10)
+                      })}
+                      className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 text-white"
+                    >
+                      {[...Array(23)].map((_, i) => {
+                        const rounds = i + 3;
+                        const minRounds = Math.max(3, selectedLeague?.sports?.length || 0);
+                        return (
+                          <option key={`draft-rounds-${rounds}`} value={rounds} disabled={rounds < minRounds}>
+                            {rounds} rounds
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  {/* OTC Emails */}
+                  <div>
+                    <h3 className="text-base font-semibold text-white mb-2">
+                      OTC Emails
+                    </h3>
+                    <p className="text-sm text-slate-400 mb-4">
+                      Off by default. Check this to send on-the-clock email notifications to league members.
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="draftSettingsOtcEmails"
+                        checked={!!draftOrderSettings.sendOTCEmails}
+                        onChange={(e) => setDraftOrderSettings({
+                          ...draftOrderSettings,
+                          sendOTCEmails: e.target.checked
+                        })}
+                        className="w-5 h-5 bg-slate-900 border-slate-700 rounded"
+                      />
+                      <label htmlFor="draftSettingsOtcEmails" className="text-base font-semibold text-white">
+                        Send On the Clock Emails
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-700/60">
+                    <h3 className="text-base font-semibold text-white mb-2">
+                      Draft Order
+                    </h3>
+                  </div>
+
+                  {/* Randomize Option */}
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <input
+                        type="checkbox"
+                        id="randomizeDraft"
+                        checked={draftOrderSettings.randomize}
+                        onChange={(e) => {
+                          setDraftOrderSettings({
+                            ...draftOrderSettings,
+                            randomize: e.target.checked,
+                            manualOrder: e.target.checked ? [] : draftOrderSettings.manualOrder
+                          });
+                        }}
+                        className="w-5 h-5 bg-slate-900 border-slate-700 rounded"
+                      />
+                      <label htmlFor="randomizeDraft" className="text-base font-semibold text-white">
+                        Randomize draft order when draft starts
+                      </label>
+                    </div>
+                    <p className="text-sm text-slate-400 ml-8">
+                      The draft order will be randomly generated when you click "Start Draft"
+                    </p>
+                  </div>
+
+                  {/* Manual Order Section */}
+                  {!draftOrderSettings.randomize && (
+                    <div>
+                      <h3 className="text-base font-semibold text-white mb-4">
+                        Manual Draft Order
+                      </h3>
+                      <p className="text-sm text-slate-400 mb-4">
+                        Use the arrow buttons to reorder members, or leave as-is to use the default order
+                      </p>
+
+                      <div className="space-y-2">
+                        {(draftOrderSettings.manualOrder.length > 0
+                          ? draftOrderSettings.manualOrder
+                          : selectedLeague?.membersList?.map(m => m.email) || []
+                        ).map((email, index) => {
+                          const member = selectedLeague?.membersList?.find(m => m.email === email);
+                          return (
+                            <div
+                              key={email}
+                              className="flex items-center gap-3 bg-slate-900/50 border border-slate-700 rounded-lg p-3"
+                            >
+                              <div className="flex items-center justify-center w-8 h-8 bg-slate-700 rounded-full text-sm font-bold text-white">
+                                {index + 1}
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-white font-medium">{email}</div>
+                                {member?.name && (
+                                  <div className="text-sm text-slate-400">{member.name}</div>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    const currentOrder = draftOrderSettings.manualOrder.length > 0
+                                      ? [...draftOrderSettings.manualOrder]
+                                      : selectedLeague?.membersList?.map(m => m.email) || [];
+                                    if (index > 0) {
+                                      [currentOrder[index], currentOrder[index - 1]] = [currentOrder[index - 1], currentOrder[index]];
+                                      setDraftOrderSettings({ ...draftOrderSettings, manualOrder: currentOrder });
+                                    }
+                                  }}
+                                  disabled={index === 0}
+                                  className="p-2 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  ↑
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const currentOrder = draftOrderSettings.manualOrder.length > 0
+                                      ? [...draftOrderSettings.manualOrder]
+                                      : selectedLeague?.membersList?.map(m => m.email) || [];
+                                    const maxIndex = (selectedLeague?.membersList?.length || 1) - 1;
+                                    if (index < maxIndex) {
+                                      [currentOrder[index], currentOrder[index + 1]] = [currentOrder[index + 1], currentOrder[index]];
+                                      setDraftOrderSettings({ ...draftOrderSettings, manualOrder: currentOrder });
+                                    }
+                                  }}
+                                  disabled={index === (selectedLeague?.membersList?.length || 1) - 1}
+                                  className="p-2 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  ↓
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Draft Timer */}
+              <div>
+                <h3 className="text-base font-semibold text-white mb-2">
+                  Draft Timer (Optional)
+                </h3>
+                <p className="text-sm text-slate-400 mb-4">
+                  Set a time limit for each pick. Members will be notified when it's their turn.
+                </p>
+                <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+                  {['none', '4 hours', '8 hours', '12 hours', '24 hours'].map(timer => (
+                    <button
+                      key={timer}
+                      onClick={() => {
+                        setDraftOrderSettings({
+                          ...draftOrderSettings,
+                          draftTimer: timer
+                        });
+                      }}
+                      className={`px-4 py-2 rounded-lg border-2 transition-all ${
+                        draftOrderSettings.draftTimer === timer
+                          ? 'border-blue-500 bg-blue-500/20 text-white'
+                          : 'border-slate-700 bg-slate-900/50 text-slate-400 hover:border-slate-600'
+                      }`}
+                    >
+                      {timer}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Timer Pause Window */}
+              <div>
+                <h3 className="text-base font-semibold text-white mb-2">
+                  Timer Pause Window (ET)
+                </h3>
+                <p className="text-sm text-slate-400 mb-4">
+                  Enable or disable the daily pause window for the timer.
+                </p>
+                <div className="flex items-center gap-3 mb-3">
+                  <input
+                    type="checkbox"
+                    id="timerPauseEnabled"
+                    checked={draftOrderSettings.timerPauseEnabled !== false}
+                    onChange={(e) => setDraftOrderSettings({
+                      ...draftOrderSettings,
+                      timerPauseEnabled: e.target.checked
+                    })}
+                    className="w-5 h-5 bg-slate-900 border-slate-700 rounded"
+                  />
+                  <label htmlFor="timerPauseEnabled" className="text-base font-semibold text-white">
+                    Enable Pause Window
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-sm text-slate-300">
+                    Start Hour
+                    <select
+                      value={draftOrderSettings.timerPauseStartHour ?? 0}
+                      disabled={draftOrderSettings.timerPauseEnabled === false}
+                      onChange={(e) => setDraftOrderSettings({
+                        ...draftOrderSettings,
+                        timerPauseStartHour: parseInt(e.target.value, 10)
+                      })}
+                      className="mt-1 w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {[...Array(24)].map((_, hour) => (
+                        <option key={`pause-start-${hour}`} value={hour}>{formatHourLabel(hour)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-sm text-slate-300">
+                    End Hour
+                    <select
+                      value={draftOrderSettings.timerPauseEndHour ?? 8}
+                      disabled={draftOrderSettings.timerPauseEnabled === false}
+                      onChange={(e) => setDraftOrderSettings({
+                        ...draftOrderSettings,
+                        timerPauseEndHour: parseInt(e.target.value, 10)
+                      })}
+                      className="mt-1 w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {[...Array(24)].map((_, hour) => (
+                        <option key={`pause-end-${hour}`} value={hour}>{formatHourLabel(hour)}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              {!selectedLeague?.draftStarted && (
+                <>
+                  {/* Draft Format */}
+                  <div>
+                    <h3 className="text-base font-semibold text-white mb-2">
+                      Draft Format
+                    </h3>
+                    <p className="text-sm text-slate-400 mb-4">
+                      Snake is default. Third Round Reversal (3RR) keeps rounds 2 and 3 reversed before alternating.
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="thirdRoundReversal"
+                        checked={!!draftOrderSettings.thirdRoundReversal}
+                        onChange={(e) => {
+                          setDraftOrderSettings({
+                            ...draftOrderSettings,
+                            thirdRoundReversal: e.target.checked
+                          });
+                        }}
+                        className="w-5 h-5 bg-slate-900 border-slate-700 rounded"
+                      />
+                      <label htmlFor="thirdRoundReversal" className="text-base font-semibold text-white">
+                        Enable Third Round Reversal (3RR)
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Sport Requirement */}
+                  <div>
+                    <h3 className="text-base font-semibold text-white mb-2">
+                      Sport Requirement
+                    </h3>
+                    <p className="text-sm text-slate-400 mb-4">
+                      Require each drafter to pick at least one team from every selected sport before flex picks.
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="draftEverySportRequired"
+                        checked={draftOrderSettings.draftEverySportRequired !== false}
+                        onChange={(e) => {
+                          setDraftOrderSettings({
+                            ...draftOrderSettings,
+                            draftEverySportRequired: e.target.checked
+                          });
+                        }}
+                        className="w-5 h-5 bg-slate-900 border-slate-700 rounded"
+                      />
+                      <label htmlFor="draftEverySportRequired" className="text-base font-semibold text-white">
+                        Require one pick from every sport
+                      </label>
+                    </div>
+                  </div>
+                </>
+              )}
+            </fieldset>
+
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-700 bg-slate-800">
+              {isCommissioner ? (
+              <button
+                onClick={async () => {
+                  // Save draft timer to database
+                  if (selectedLeagueId) {
+                    try {
+                      const updates = {
+                        draft_timer: draftOrderSettings.draftTimer,
+                        timer_pause_start_hour: draftOrderSettings.timerPauseStartHour ?? 0,
+                        timer_pause_end_hour: (draftOrderSettings.timerPauseEnabled === false)
+                          ? (draftOrderSettings.timerPauseStartHour ?? 0)
+                          : (draftOrderSettings.timerPauseEndHour ?? 8)
+                      };
+                      if (!selectedLeague?.draftStarted) {
+                        updates.draft_rounds = Math.max(
+                          draftOrderSettings.draftRounds || selectedLeague?.draftRounds || 8,
+                          selectedLeague?.sports?.length || 0
+                        );
+                        updates.send_otc_emails = !!draftOrderSettings.sendOTCEmails;
+                      }
+                      await updateLeague(selectedLeagueId, updates);
+                      await reloadLeagues();
+                    } catch (error) {
+                      console.error('Error saving draft settings:', error);
+                    }
+                  }
+                  setShowDraftSettingsModal(false);
+                }}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-semibold transition-all shadow-lg shadow-blue-500/20"
+              >
+                Save Settings
+              </button>
+              ) : (
+              <button
+                onClick={() => setShowDraftSettingsModal(false)}
+                className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-all"
+              >
+                Close
+              </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Start Draft Confirmation Modal */}
+      {showStartDraftConfirmation && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full">
+            <div className="border-b border-slate-700 p-6">
+              <h3 className="text-xl font-bold text-white">Confirm Draft Start</h3>
+              <p className="text-sm text-slate-400 mt-1">Review your draft settings. Once started, these cannot be changed.</p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Draft Order</span>
+                <span className="text-sm font-semibold text-white">
+                  {draftOrderSettings.randomize ? 'Random' : 'Manual'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Draft Format</span>
+                <span className="text-sm font-semibold text-white">
+                  {draftOrderSettings.thirdRoundReversal ? 'Snake (3RR)' : 'Snake'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Sport Requirement</span>
+                <span className="text-sm font-semibold text-white">
+                  {draftOrderSettings.draftEverySportRequired !== false ? 'Required' : 'Optional'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Pick Timer</span>
+                <span className="text-sm font-semibold text-white">
+                  {selectedLeague?.draftTimer && selectedLeague.draftTimer !== 'none' ? selectedLeague.draftTimer : 'None'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-6 border-t border-slate-700">
+              <button
+                onClick={() => setShowStartDraftConfirmation(false)}
+                className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-all"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={() => {
+                  setShowStartDraftConfirmation(false);
+                  startDraft();
+                }}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-semibold transition-all"
+              >
+                Start Draft
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showDeleteConfirm && (
+        <ConfirmModal
+          title="Delete League?"
+          message={<>This will permanently delete <span className="text-white font-semibold">{selectedLeague?.name}</span> and all its picks. This cannot be undone.</>}
+          confirmLabel="Delete"
+          confirmClassName="bg-red-600/80 hover:bg-red-600 text-white"
+          onConfirm={async () => {
+            try {
+              await deleteLeague();
+              setShowDeleteConfirm(false);
+            } catch {
+              setDeleteError('Failed to delete league. Please try again.');
+            }
+          }}
+          onCancel={() => setShowDeleteConfirm(false)}
+          error={deleteError}
+        />
+      )}
+      {showCompleteConfirm && (
+        <ConfirmModal
+          title="Mark as Complete?"
+          message={<>This will move <span className="text-white font-semibold">{selectedLeague?.name}</span> to the Completed tab for all members.</>}
+          confirmLabel="Confirm"
+          confirmClassName="bg-emerald-600/80 hover:bg-emerald-600 text-white"
+          onConfirm={async () => {
+            try {
+              await updateLeague(selectedLeagueId, { status: 'completed' });
+              await reloadLeagues();
+              setShowCompleteConfirm(false);
+            } catch {
+              setCompleteError('Failed to mark league completed. Please try again.');
+            }
+          }}
+          onCancel={() => setShowCompleteConfirm(false)}
+          error={completeError}
+        />
+      )}
+
+      {/* Team Info Popup */}
+      {selectedTeamInfo && (
+        <TeamPopup
+          sport={selectedTeamInfo.sport}
+          team={selectedTeamInfo.team}
+          currentEP={selectedTeamInfo.currentEP}
+          onClose={() => {
+            setSelectedTeamInfo(null);
+            if (teamInfoFromSportsRef.current) {
+              teamInfoFromSportsRef.current = false;
+              setShowSportsModal(true);
+            }
+          }}
+        />
+      )}
+      </div>
+    </div>
+    );
+};
+
+export default LeagueView;
