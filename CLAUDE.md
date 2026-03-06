@@ -32,7 +32,7 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `src/useResults.js` - React hook wrapping `resultsApi.js`: `useResults(sportCodes)` → `{ results, loading, error, retryResults }`
 - `src/supabaseClient.js` - Database operations (CRUD for leagues, picks, draft state, odds cache)
 - `src/useSupabase.js` - React hooks: `useAuth`, `useLeagues`, `useDraft`
-- `src/oddsApi.js` - The Odds API integration: fetches championship odds, converts to expected points via positional probability model, caches in Supabase. Includes API-Football fallback for UCL.
+- `src/oddsApi.js` - The Odds API integration: fetches championship odds, converts to expected points via positional probability model, caches in Supabase.
 - `src/oddsScraper.js` - Data fetcher for sports not on The Odds API (F1, Men's Tennis, Women's Tennis). F1 uses Jolpica API mid-season, all use market-derived preseason odds as fallback.
 - `src/useExpectedPoints.js` - React hook that wraps `oddsApi.js` for component use. Returns `{ expectedPoints, loading, error, refreshExpectedPoints }`. `loading` is exposed as `epLoading` in `omnifantasy-app.jsx` and passed via `AppContext`.
 - `src/useTeamNews.js` - Fetches recent news from ESPN API for a team/sport. Returns `{ news: [], hasTeamNews: bool, loading }`. Searches headlines for team name; falls back to top sport headlines. 10-minute in-memory cache.
@@ -168,7 +168,6 @@ Cached EP data includes a `_v` field set to `CACHE_VERSION` (currently **7**). W
 - **2-day TTL** → ~15 refreshes/month → **~165 credits/month**
 - ~335 credits headroom
 - F1/Tennis use free APIs or hardcoded odds — no Odds API credits consumed
-- API-Football (UCL fallback) has its own free-tier key (`VITE_API_FOOTBALL_KEY`)
 - UCL, Euro, and WorldCup fetch odds from `us,uk,eu,au` regions (`GLOBAL_REGIONS_SPORTS`) for better coverage; all others use `us` only
 - NCAAF uses `STRICT_FUTURES_ONLY_SPORTS` mode: never serves stale cached EP — always returns empty off-season (prevents outdated preseason odds from persisting)
 
@@ -181,7 +180,7 @@ Cached EP data includes a `_v` field set to `CACHE_VERSION` (currently **7**). W
 | NCAAMB | Working | Odds API: `basketball_ncaab_championship_winner` |
 | MLB | Working | Odds API: `baseball_mlb_world_series_winner` |
 | NHL | Working | Odds API: `icehockey_nhl_championship_winner` |
-| UCL | Working (w/ fallback) | Odds API: `soccer_uefa_champs_league_winner`; fallback: API-Football match odds |
+| UCL | Working | Odds API: `soccer_uefa_champs_league_winner` |
 | Euro | Working | Odds API: `soccer_uefa_european_championship_winner` |
 | World Cup | Working | Odds API: `soccer_fifa_world_cup_winner` |
 | Golf | Working (4 majors aggregated) | Odds API: `golf_masters_tournament_winner`, etc. |
@@ -189,10 +188,6 @@ Cached EP data includes a `_v` field set to `CACHE_VERSION` (currently **7**). W
 | F1 | Working (scraper) | Jolpica API mid-season, preseason market odds fallback |
 | Men's Tennis | Working (scraper) | Preseason market-derived odds in `oddsScraper.js` |
 | Women's Tennis | Working (scraper) | Preseason market-derived odds in `oddsScraper.js` |
-
-### UCL Fallback — API-Football
-
-When The Odds API has no outright market for UCL (common mid-season), `oddsApi.js` falls back to `fetchUclExpectedPointsFromApiFootball()`. This fetches match-level odds from API-Football, derives relative team strength from head-to-head win probabilities, normalizes to championship probabilities, and applies `calculateEP()`. Requires `VITE_API_FOOTBALL_KEY`.
 
 ### oddsScraper.js — Non-API Sports
 
@@ -541,7 +536,6 @@ New columns added directly to `database-setup.sql` (no separate migration files)
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 VITE_ODDS_API_KEY=your_odds_api_key
-VITE_API_FOOTBALL_KEY=your_api_football_key   # UCL fallback only
 ```
 
 ## Future / Planned

@@ -17,9 +17,6 @@ import { fetchScrapedProbabilities, isScrapedSport } from './oddsScraper';
 import { normalizeOddsApiName } from './utils/aliases';
 
 const API_BASE = 'https://api.the-odds-api.com/v4/sports';
-const API_FOOTBALL_BASE = 'https://api-football-v1.p.rapidapi.com/v3';
-const API_FOOTBALL_HOST = 'api-football-v1.p.rapidapi.com';
-const API_FOOTBALL_UCL_LEAGUE_ID = 2;
 const CACHE_TTL = 2 * 24 * 60 * 60 * 1000; // 2 days
 // Bump this when the EP formula changes to invalidate stale cached values
 const CACHE_VERSION = 7;
@@ -95,88 +92,6 @@ function americanToImpliedProbability(odds) {
   return Math.abs(odds) / (Math.abs(odds) + 100);
 }
 
-function decimalToImpliedProbability(odds) {
-  const value = parseFloat(odds);
-  if (!Number.isFinite(value) || value <= 1) return null;
-  return 1 / value;
-}
-
-function getCurrentEuropeanSeasonYear(date = new Date()) {
-  const year = date.getUTCFullYear();
-  const month = date.getUTCMonth(); // 0-indexed
-  // UEFA season starts in July.
-  return month >= 6 ? year : year - 1;
-}
-
-/**
- * Fallback source for UCL expected points using API-Football match odds.
- * We derive team strength from implied win probabilities in available fixtures,
- * then normalize to championship probabilities for EP calculation.
- */
-async function fetchUclExpectedPointsFromApiFootball(apiKey) {
-  if (!apiKey) return {};
-
-  const season = getCurrentEuropeanSeasonYear();
-  const url = `${API_FOOTBALL_BASE}/odds?league=${API_FOOTBALL_UCL_LEAGUE_ID}&season=${season}`;
-
-  const response = await fetch(url, {
-    headers: {
-      'x-rapidapi-key': apiKey,
-      'x-rapidapi-host': API_FOOTBALL_HOST
-    }
-  });
-  if (!response.ok) return {};
-
-  const payload = await response.json();
-  const oddsRows = payload?.response;
-  if (!Array.isArray(oddsRows) || oddsRows.length === 0) return {};
-
-  const teamStrength = {};
-
-  for (const row of oddsRows) {
-    const home = row?.teams?.home?.name;
-    const away = row?.teams?.away?.name;
-    if (!home || !away) continue;
-
-    const bookmakers = row?.bookmakers || [];
-    let matchWinnerValues = null;
-    for (const bookmaker of bookmakers) {
-      const market = bookmaker?.bets?.find(bet => bet?.name === 'Match Winner');
-      if (market?.values?.length) {
-        matchWinnerValues = market.values;
-        break;
-      }
-    }
-    if (!matchWinnerValues) continue;
-
-    const homeOdd = matchWinnerValues.find(v => v?.value === 'Home' || v?.value === '1')?.odd;
-    const awayOdd = matchWinnerValues.find(v => v?.value === 'Away' || v?.value === '2')?.odd;
-
-    const pHomeRaw = decimalToImpliedProbability(homeOdd);
-    const pAwayRaw = decimalToImpliedProbability(awayOdd);
-    if (!pHomeRaw || !pAwayRaw) continue;
-
-    // Renormalize to home/away only (drop draw probability).
-    const denom = pHomeRaw + pAwayRaw;
-    if (denom <= 0) continue;
-    const pHome = pHomeRaw / denom;
-    const pAway = pAwayRaw / denom;
-
-    const homeName = normalizeOddsApiName(home);
-    const awayName = normalizeOddsApiName(away);
-
-    teamStrength[homeName] = (teamStrength[homeName] || 0) + pHome;
-    teamStrength[awayName] = (teamStrength[awayName] || 0) + pAway;
-  }
-
-  const totalStrength = Object.values(teamStrength).reduce((sum, val) => sum + val, 0);
-  if (totalStrength <= 0) return {};
-
-  const result = {};
-  for (const [team, strength] of Object.entries(teamStrength)) {
-    const winProb = strength / totalStrength;
-    result[team] = Math.round(calculateEP(winProb) * 10) / 10;
-  }
   return result;
 }
 
@@ -307,11 +222,6 @@ export async function fetchExpectedPoints(sportCode) {
       // Odds API sport: fetch from API
       const apiKey = import.meta.env.VITE_ODDS_API_KEY;
       if (!apiKey) {
-        if (sportCode === 'UCL') {
-          const apiFootballKey = import.meta.env.VITE_API_FOOTBALL_KEY;
-          const fallback = await fetchUclExpectedPointsFromApiFootball(apiFootballKey);
-          return Object.keys(fallback).length > 0 ? fallback : (staleData || {});
-        }
         return strictFuturesOnly ? {} : (staleData || {});
       }
 
@@ -341,14 +251,6 @@ export async function fetchExpectedPoints(sportCode) {
         }
       }
 
-      // Secondary source for UCL when outright market is unavailable.
-      if (sportCode === 'UCL' && Object.keys(aggregated).length === 0) {
-        const apiFootballKey = import.meta.env.VITE_API_FOOTBALL_KEY;
-        const fallback = await fetchUclExpectedPointsFromApiFootball(apiFootballKey);
-        if (Object.keys(fallback).length > 0) {
-          aggregated = fallback;
-        }
-      }
 
     }
 
