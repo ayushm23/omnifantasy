@@ -106,8 +106,10 @@ export const useLeagues = (userEmail) => {
       sports: league.sports || [],
       members: league.league_members?.length || 0,
       membersList: league.league_members?.map(m => ({
+        id: m.id,
         email: m.email,
-        name: m.name
+        name: m.name,
+        status: m.status ?? 'accepted'
       })) || [],
       commissionerEmail: league.commissioner_email,
       draftRounds: league.draft_rounds,
@@ -126,7 +128,8 @@ export const useLeagues = (userEmail) => {
       totalPoints: 0,
       myTeams: [],
       currentPickerEmail: null,
-      draftComplete: false
+      draftComplete: false,
+      allMembersAccepted: (league.league_members || []).every(m => (m.status ?? 'accepted') === 'accepted')
     }));
 
     // Batch fetch picks counts + draft states for all active leagues (2 queries total vs 2N)

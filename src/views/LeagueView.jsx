@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Plus, X, ArrowLeft, Trash2, Settings } from 'lucide-react';
+import { Plus, X, ArrowLeft, Trash2, Settings, UserPlus, UserMinus, Users } from 'lucide-react';
+import { addLeagueMember, removeLeagueMember, sendLeagueInvite } from '../supabaseClient';
 import { getCurrentPickerFromState, picksUntilTurn } from '../utils/draft';
 import { calculatePickPoints } from '../utils/points';
 import { getSportDisplayCode, getSportNameByCode } from '../config/sports';
@@ -47,6 +48,39 @@ const LeagueView = (props) => {
   const teamInfoFromSportsRef = useRef(false); // true when popup was opened from the sports catalog modal
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [expandedStandingsEmail, setExpandedStandingsEmail] = useState(null);
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [addMemberLoading, setAddMemberLoading] = useState(false);
+  const [addMemberError, setAddMemberError] = useState('');
+  const [removingMemberId, setRemovingMemberId] = useState(null);
+  const [showRemoveMemberConfirm, setShowRemoveMemberConfirm] = useState(null); // member object to remove
+
+  const handleAddMember = async () => {
+    const email = newMemberEmail.trim().toLowerCase();
+    if (!email) return;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) { setAddMemberError('Enter a valid email address.'); return; }
+    const already = selectedLeague?.membersList?.some(m => m.email.toLowerCase() === email);
+    if (already) { setAddMemberError('This person is already in the league.'); return; }
+    if ((selectedLeague?.membersList?.length || 0) >= 20) { setAddMemberError('League is full (20 members max).'); return; }
+    setAddMemberLoading(true);
+    setAddMemberError('');
+    const { error } = await addLeagueMember(selectedLeagueId, email);
+    if (error) { setAddMemberError(error.message || 'Failed to add member.'); setAddMemberLoading(false); return; }
+    const commName = getUserDisplayName(currentUser);
+    sendLeagueInvite(email, selectedLeague?.name || '', commName);
+    setNewMemberEmail('');
+    await reloadLeagues();
+    setAddMemberLoading(false);
+  };
+
+  const handleRemoveMember = async (member) => {
+    if (!member?.id) return;
+    setRemovingMemberId(member.id);
+    await removeLeagueMember(member.id);
+    setShowRemoveMemberConfirm(null);
+    await reloadLeagues();
+    setRemovingMemberId(null);
+  };
   const leagueSportsRows = useMemo(() => {
     const search = sportsSearch.trim().toLowerCase();
     const rows = (allSportCodes || []).flatMap((sport) => {
@@ -242,15 +276,25 @@ const LeagueView = (props) => {
             )}
 
             {/* Start Draft - Commissioner only */}
-            {isCommissioner && !selectedLeague?.draftStarted && (
-              <button
-                onClick={() => setShowStartDraftConfirmation(true)}
-                className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-4 py-2.5 md:px-6 md:py-3 rounded-lg font-semibold transition-all shadow-lg shadow-green-500/20"
-              >
-                <Plus size={18} />
-                Start Draft
-              </button>
-            )}
+            {isCommissioner && !selectedLeague?.draftStarted && (() => {
+              const notReady = (selectedLeague?.membersList || []).filter(m => m.status !== 'accepted');
+              const canStart = notReady.length === 0;
+              return (
+                <button
+                  onClick={canStart ? () => setShowStartDraftConfirmation(true) : undefined}
+                  disabled={!canStart}
+                  title={!canStart ? `Waiting for ${notReady.length} member${notReady.length !== 1 ? 's' : ''} to accept` : undefined}
+                  className={`flex items-center gap-2 px-4 py-2.5 md:px-6 md:py-3 rounded-lg font-semibold transition-all ${
+                    canStart
+                      ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg shadow-green-500/20'
+                      : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  <Plus size={18} />
+                  Start Draft
+                </button>
+              );
+            })()}
 
             {/* Draft Settings - Visible to all members */}
             <button
@@ -552,6 +596,116 @@ const LeagueView = (props) => {
               </>
             )}
           </div>
+
+          {/* Member Management Panel — pre-draft only */}
+          {!selectedLeague?.draftStarted && (() => {
+            const members = selectedLeague?.membersList || [];
+            const pendingCount = members.filter(m => m.status === 'pending').length;
+            const declinedCount = members.filter(m => m.status === 'declined').length;
+            return (
+              <div className="mt-6 bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                    <Users size={16} className="text-slate-400" />
+                    League Members
+                    {pendingCount > 0 && (
+                      <span className="text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                        {pendingCount} pending
+                      </span>
+                    )}
+                    {declinedCount > 0 && (
+                      <span className="text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full">
+                        {declinedCount} declined
+                      </span>
+                    )}
+                  </h3>
+                </div>
+
+                {/* Draft start status message */}
+                {isCommissioner && (() => {
+                  const notReady = members.filter(m => m.status !== 'accepted');
+                  if (notReady.length === 0) return null;
+                  const pending = notReady.filter(m => m.status === 'pending');
+                  const declined = notReady.filter(m => m.status === 'declined');
+                  return (
+                    <div className="space-y-1">
+                      {pending.length > 0 && (
+                        <p className="text-xs text-amber-400">
+                          ⏳ Waiting for {pending.map(m => m.email.split('@')[0]).join(', ')} to accept
+                        </p>
+                      )}
+                      {declined.length > 0 && (
+                        <p className="text-xs text-red-400">
+                          ✗ {declined.map(m => m.email.split('@')[0]).join(', ')} declined — remove them to enable draft start
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Member list */}
+                <div className="space-y-2">
+                  {members.map(member => {
+                    const isCommissionerRow = member.email?.toLowerCase() === selectedLeague?.commissionerEmail?.toLowerCase();
+                    const statusBadge = member.status === 'accepted'
+                      ? <span className="text-xs text-emerald-400">✓ Joined</span>
+                      : member.status === 'declined'
+                      ? <span className="text-xs text-red-400">✗ Declined</span>
+                      : <span className="text-xs text-amber-400">⏳ Pending</span>;
+                    return (
+                      <div key={member.email} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-slate-700/30">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 rounded-full bg-slate-600 flex items-center justify-center text-xs font-semibold text-white shrink-0">
+                            {(member.name || member.email || '?')[0].toUpperCase()}
+                          </div>
+                          <span className="text-sm text-slate-200 truncate">{member.name || member.email.split('@')[0]}</span>
+                          {isCommissionerRow && <span className="text-xs text-slate-500 shrink-0">commissioner</span>}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          {statusBadge}
+                          {isCommissioner && !isCommissionerRow && (
+                            <button
+                              onClick={() => setShowRemoveMemberConfirm(member)}
+                              className="text-slate-500 hover:text-red-400 transition-colors p-1 rounded"
+                              title="Remove member"
+                            >
+                              <UserMinus size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Add member (commissioner only) */}
+                {isCommissioner && (
+                  <div className="pt-2 border-t border-slate-700/50">
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        value={newMemberEmail}
+                        onChange={e => { setNewMemberEmail(e.target.value); setAddMemberError(''); }}
+                        onKeyDown={e => e.key === 'Enter' && !addMemberLoading && handleAddMember()}
+                        placeholder="Add member by email…"
+                        className="flex-1 bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                      />
+                      <button
+                        disabled={addMemberLoading || !newMemberEmail.trim()}
+                        onClick={handleAddMember}
+                        className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors shrink-0"
+                      >
+                        <UserPlus size={14} />
+                        {addMemberLoading ? 'Adding…' : 'Invite'}
+                      </button>
+                    </div>
+                    {addMemberError && <p className="text-xs text-red-400 mt-1.5">{addMemberError}</p>}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
         )}
 
         {/* Big Board Tab */}
@@ -1511,6 +1665,19 @@ const LeagueView = (props) => {
           }}
           onCancel={() => setShowCompleteConfirm(false)}
           error={completeError}
+        />
+      )}
+
+      {/* Remove Member Confirmation */}
+      {showRemoveMemberConfirm && (
+        <ConfirmModal
+          title="Remove Member?"
+          message={<>Remove <span className="text-white font-semibold">{showRemoveMemberConfirm.name || showRemoveMemberConfirm.email}</span> from this league?</>}
+          confirmLabel="Remove"
+          confirmClassName="bg-red-600/80 hover:bg-red-600 text-white"
+          onConfirm={() => handleRemoveMember(showRemoveMemberConfirm)}
+          onCancel={() => setShowRemoveMemberConfirm(null)}
+          error={removingMemberId ? 'Removing…' : ''}
         />
       )}
 

@@ -10,7 +10,7 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - Backend: Supabase (PostgreSQL + Real-time)
 - Authentication: Supabase Auth (Email/Password)
 - Icons: Lucide React
-- Odds Data: The Odds API (free tier, 500 credits/month) + custom scraper for F1/Tennis + API-Football fallback for UCL
+- Odds Data: The Odds API (free tier, 500 credits/month) + custom scraper for F1/Tennis
 
 ## Key Files
 
@@ -48,6 +48,7 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `database/database-migration-ep-history.sql` - Migration for `ep_history` table (EP trend data for team popups)
 - `database/database-migration-league-chat.sql` - Migration for `league_chat` table (per-league real-time chat)
 - `database/database-migration-league-emoji.sql` - Migration for `league_emoji TEXT DEFAULT '🏆'` column on `leagues`
+- `database/database-migration-member-status.sql` - Migration for `status` column on `league_members` (invite/accept flow)
 - `src/useDraftQueue.js` - React hook for managing a user's personal draft queue and per-league draft settings. Returns `{ queue, settings, loading, error, addItem, removeItem, moveItem, reorderAll, clearAll, updateSettings, reload }`. Mutations use optimistic state updates with snapshot+restore rollback on DB failure; `error` is set on failure and cleared on the next mutation attempt. `reorderAll(reorderedItems)` bulk-reorders the queue optimistically and calls `bulkReorderQueue` in `supabaseClient.js`.
 - `src/useEPHistory.js` - React hook: `useEPHistory(sportCode, teamName)` → `{ history: [{date, ep}], loading }`. Fetches EP trend data for a team from the `ep_history` table.
 - `src/components/TeamPopup.jsx` - Modal popup showing current EP, EP trend chart (Recharts LineChart), and recent news for a team. Time frame selector (1W/1M/3M/All) for chart. Opens when any team name is clicked in DraftView or LeagueView. Props: `{ sport, team, currentEP, onClose }`.
@@ -104,7 +105,7 @@ setCurrentView('draft');
 ### Core Tables
 
 1. **leagues** - `id`, `name`, `commissioner_email`, `sports[]`, `draft_rounds`, `draft_started`, `draft_timer`, `send_otc_emails`, `draft_date`, `timer_pause_start_hour`, `timer_pause_end_hour`, `league_emoji` (TEXT DEFAULT '🏆'), `created_at`
-2. **league_members** - `id`, `league_id`, `email`, `name`, `draft_position`, `joined_at`
+2. **league_members** - `id`, `league_id`, `email`, `name`, `draft_position`, `status` (TEXT: `'pending'`|`'accepted'`|`'declined'`, DEFAULT `'pending'`), `joined_at`
 3. **draft_picks** - `id`, `league_id`, `pick_number`, `round`, `picker_email`, `picker_name`, `sport`, `team`, `team_name`, `created_at`
 4. **draft_state** - `league_id`, `current_pick`, `current_round`, `draft_order`, `is_snake`, `third_round_reversal`, `draft_every_sport_required`, `pick_started_at`, `updated_at`
 5. **odds_cache** - `sport_code` (PK), `data` (JSONB), `updated_at` — shared EP cache for all users
@@ -197,7 +198,8 @@ Handles F1, Men's Tennis, Women's Tennis (no Odds API coverage for these):
 - **Men's Tennis / Women's Tennis**: Uses hardcoded market-derived preseason implied probabilities (aggregated from major sportsbooks' futures). Update these at the start of each season.
 - All probabilities are normalized to sum to 1.0, then `calculateEP()` is applied.
 - Results cached in the same `odds_cache` table with the same 2-day TTL.
-- Currently using **2026 preseason odds** — update `F1_PRESEASON_ODDS`, `ATP_ODDS`, `WTA_ODDS` at start of each new season.
+- Currently using **2026 preseason odds** (`F1_PRESEASON_ODDS`, `ATP_ODDS`, `WTA_ODDS`) — update at start of each new season.
+- **API Football removed**: UCL was previously fetched via API Football as a fallback; it now uses The Odds API exclusively.
 
 ### Team Name Normalization
 
@@ -314,7 +316,7 @@ EP totals show an asterisk `*` with tooltip "Some picks lack odds data — EP to
 | WomensTennis | WTA | pink-500 | 30 players |
 
 Notes:
-- F1 options are individual **drivers** (not teams).
+- F1 options are individual **drivers** (not teams). 2026 pool includes Liam Lawson and Kimi Antonelli.
 - Euro is year-gated: only selectable in 2024, 2028, etc. (`isTournamentYear`)
 - WorldCup is year-gated: only selectable in 2026, 2030, etc.
 
@@ -340,6 +342,28 @@ Notes:
 ### Draft Confirmation Modal
 - `showStartDraftConfirmation` state controls visibility
 - Rendered in `omnifantasy-app.jsx`, surfaced during the league view flow
+
+### League Invite & Member Acceptance Flow
+
+Members must accept before the draft can start. The flow:
+
+1. **League creation**: Commissioner adds member emails. Commissioner row is inserted as `status = 'accepted'`; all other members as `status = 'pending'`. Invite emails are sent fire-and-forget via the `send-league-invite` Supabase Edge Function.
+2. **Invite emails**: The Edge Function checks `auth.users` (service role) to determine if the email is a new or existing user, then sends different copy:
+   - **Existing user**: "Log in at [app URL] to accept your invite."
+   - **New user**: "Create a free account at [app URL] using this email address."
+   - Requires Supabase secrets: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
+   - Deploy: `supabase functions deploy send-league-invite`
+3. **Home page**: Members with `status = 'pending'` see an amber-bordered invite card with **Accept** and **Decline** buttons instead of normal league stats. Declined leagues are hidden from that member's view.
+4. **League detail (pre-draft)**: Standings tab shows a **Member Management** panel:
+   - Member list with status badges: ✓ Joined / ⏳ Pending / ✗ Declined
+   - Commissioner can add members (sends invite email) or remove any member (ConfirmModal)
+5. **Draft start gate**: "Start Draft" button is disabled until all members have `status = 'accepted'`. Shows a message explaining who is pending or that declined members must be removed first.
+
+**`membersList`** entries now include `{ id, email, name, status }`. The league object has `allMembersAccepted: bool`.
+
+**New `supabaseClient.js` helpers**: `acceptLeagueInvite`, `declineLeagueInvite`, `addLeagueMember`, `removeLeagueMember`, `sendLeagueInvite`.
+
+**Migration**: `database/database-migration-member-status.sql` — adds `status` column, backfills existing rows to `'accepted'`, adds self-update RLS policy.
 
 ### Draft Timer
 - `pick_started_at` column in `draft_state` tracks when each pick began
@@ -377,6 +401,16 @@ Points display:
 ### Big Board & My Roster
 - Real points displayed when sport results are available
 - EP shown next to picks when available
+- **Compact card layout**: Pick cards use tight padding (`px-2 py-1.5`), thinner border, smaller text, and a responsive column grid (`2 col mobile / 3 sm / 4 lg / 5 xl`)
+
+### Mobile Responsiveness
+The app is fully responsive with a `md` (768px) breakpoint as the primary split:
+
+- **Hamburger menu**: On `< md` screens, header buttons (Rules, Sports, Settings, Logout) collapse into a dropdown hamburger menu. Present in `omnifantasy-app.jsx` (home), `DraftView.jsx`, and `LeagueView.jsx`.
+- **Draft queue bottom sheet**: On mobile, the sidebar queue is hidden. A sticky bottom bar with "My Queue (N items)" toggles a `h-[80vh]` bottom sheet with full queue functionality (reorder, remove, clear, settings).
+- **Standings collapse cards**: On mobile, standings render as tap-to-expand cards (rank + name + points visible; per-sport breakdown revealed on tap). Desktop keeps the full table.
+- **Sports catalog modal**: Bottom-anchored (`rounded-t-2xl`, no centering) on mobile; centered `md:rounded-2xl` modal on desktop. `max-h-[80vh]` on mobile, `md:max-h-[90vh]` on desktop. Team names use `line-clamp-2` instead of `truncate` for better narrow-screen display.
+- **Draft board**: Card-based stacking on mobile; full grid on desktop.
 
 ### Home Page Features
 - **Sports modal** (`showHomeSportsModal`): 🏟️ Sports button in header opens a full EP browser for all selectable sports (search, filter by sport, sort by EP or name). EP is fetched for ALL selectable sports while on the home page (`epSportCodes = homeSportCodes`), not just a selected league's sports. While `epLoading` is true, the modal shows 6 skeleton rows instead of data.
@@ -390,7 +424,7 @@ Points display:
 Simplified to prevent infinite recursion:
 
 - **leagues**: SELECT = `true`, INSERT = commissioner only, UPDATE/DELETE = commissioner only
-- **league_members**: SELECT = `true`, INSERT/UPDATE/DELETE = commissioner only
+- **league_members**: SELECT = `true`, INSERT/DELETE = commissioner only, UPDATE = commissioner OR `auth.email() = email` (members can self-accept/decline)
 - **draft_picks**: SELECT = `true`, INSERT = any authenticated user, DELETE = commissioner only
 - **draft_state**: SELECT = `true`, UPDATE = any authenticated user
 - **odds_cache**: SELECT = `true`, INSERT/UPDATE = any authenticated user
@@ -438,6 +472,12 @@ Simplified to prevent infinite recursion:
 19. **Team popup chart shows no data**: Normal on first deploy — `ep_history` starts empty. Data accumulates after the first odds cache refresh cycle (~2 days). If a specific team is missing, check that their name in `TEAM_POOLS` exactly matches the key stored in `snapshot_data` (which uses the same `aggregated` object from `fetchExpectedPoints`, already normalized via `NAME_ALIASES`).
 
 20. **Clicking a team name in the draft grid triggers pick confirmation**: The team name `<button>` in `DraftView.jsx` must call `e.stopPropagation()` to prevent the parent row's `onClick` from firing. Verify `stopPropagation` is present.
+
+21. **`league_members.status` column not found**: Run `database/database-migration-member-status.sql` in Supabase SQL Editor.
+
+22. **Invite emails not sending**: The `send-league-invite` Edge Function must be deployed (`supabase functions deploy send-league-invite`) and the SMTP secrets set (`supabase secrets set SMTP_HOST=... SMTP_PORT=... SMTP_USER=... SMTP_PASS=... SMTP_FROM=...`). Email failures are logged server-side but do NOT block league creation — the `sendLeagueInvite()` call is fire-and-forget.
+
+23. **"Start Draft" button disabled even after all members accepted**: Check that the `status` column exists in DB (run migration). Verify `membersList` in the league object has `status` field — it's mapped in `useSupabase.js`. Pre-migration leagues are backfilled to `'accepted'` so they should be unaffected.
 
 ## Code Patterns
 
@@ -525,6 +565,7 @@ const pts = calculatePickPoints(pick, sportResults);
 9. `database/database-migration-ep-history.sql` — Creates `ep_history` table for EP trend chart data with RLS and index
 10. `database/database-migration-league-chat.sql` — Creates `league_chat` table with RLS and index
 11. `database/database-migration-league-emoji.sql` — Adds `league_emoji TEXT DEFAULT '🏆'` to `leagues`
+12. `database/database-migration-member-status.sql` — Adds `status TEXT DEFAULT 'pending'` to `league_members`, backfills existing rows to `'accepted'`, adds self-update RLS policy
 
 New columns added directly to `database/database-setup.sql` (no separate migration files):
 - `draft_rounds` on `leagues`
@@ -544,7 +585,6 @@ VITE_ODDS_API_KEY=your_odds_api_key
 - Switch F1/Tennis to The Odds API if/when they add outright winner markets
 - Draft chat functionality
 - League history and statistics
-- Mobile-responsive improvements
 
 ## Implemented Features (reference)
 
@@ -561,3 +601,9 @@ These were previously deferred and are now shipped:
 - **Queue error banner** — DraftView shows a red error banner above the queue panel when `queueError` is set
 - **Skeleton loading states** — Sports modals (home, DraftView, LeagueView) show 6 `animate-pulse` skeleton rows while `epLoading`; Big Board/roster show shimmer bars while `resultsLoading`
 - **`formatTimeRemaining`** — Added to `src/utils/format.js` for millisecond-to-human countdown formatting
+- **Mobile responsiveness** — Hamburger nav menu on `< md` screens; draft queue as bottom sheet on mobile; standings as tap-to-expand cards on mobile; Sports catalog as bottom-anchored sheet on mobile; compact Big Board card grid with responsive columns
+- **Big Board compact cards** — Tighter padding, thinner border, responsive column grid (2/3/4/5 cols by breakpoint)
+- **API Football removed** — UCL fallback via API Football was removed; UCL uses The Odds API exclusively
+- **2026 preseason odds** — `F1_PRESEASON_ODDS`, `ATP_ODDS`, `WTA_ODDS` in `oddsScraper.js` updated for 2026 season; F1 pool includes Liam Lawson and Kimi Antonelli
+- **EP_METHODOLOGY.md** — Standalone reference doc explaining EP calculation, data sources, caching, and API budget
+- **Database folder** — All SQL files organized under `database/` subfolder

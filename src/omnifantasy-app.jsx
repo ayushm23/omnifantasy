@@ -7,7 +7,7 @@ import { useDraftQueue } from './useDraftQueue';
 import { useAutoPickLogic } from './hooks/useAutoPickLogic';
 import { isSportSupported } from './oddsApi';
 import { calculatePickPoints } from './utils/points';
-import { updateLeague, getPickerQueue, updateUserMetadata } from './supabaseClient';
+import { updateLeague, getPickerQueue, updateUserMetadata, sendLeagueInvite, acceptLeagueInvite, declineLeagueInvite } from './supabaseClient';
 import {
   AVAILABLE_SPORTS,
   TEAM_POOLS,
@@ -75,6 +75,7 @@ const OmnifantasyApp = () => {
   const [homeSportsSortBy, setHomeSportsSortBy] = useState('ep');
   const [homeSportsSortDir, setHomeSportsSortDir] = useState('desc');
   const [showUserSettings, setShowUserSettings] = useState(false);
+  const [inviteActionLoading, setInviteActionLoading] = useState(null); // leagueId of in-flight accept/decline
   const [selectedHomeTeamInfo, setSelectedHomeTeamInfo] = useState(null); // { sport, team, currentEP }
   const homeTeamInfoFromSportsRef = useRef(false);
 
@@ -312,10 +313,11 @@ const OmnifantasyApp = () => {
 
   const filteredLeagues = leagues
     .filter(league => {
-      // Show league if user is the commissioner OR is in the members list
       const isCommissioner = league.commissionerEmail?.toLowerCase() === currentUser?.email.toLowerCase();
-      const isMember = league.membersList && league.membersList.some(m => m.email.toLowerCase() === currentUser?.email.toLowerCase());
-      return isCommissioner || isMember;
+      const myMembership = league.membersList?.find(m => m.email.toLowerCase() === currentUser?.email.toLowerCase());
+      if (isCommissioner) return true;
+      if (!myMembership) return false;
+      return myMembership.status !== 'declined'; // hide leagues the user has declined
     })
     .filter(league => league.status === activeTab);
   const selectedLeague = leagues.find(l => l.id === selectedLeagueId);
@@ -730,6 +732,14 @@ const OmnifantasyApp = () => {
 
     try {
       await createLeagueDB(leagueData);
+
+      // Fire invite emails to all non-commissioner members (fire-and-forget)
+      const commName = getUserDisplayName(currentUser);
+      for (const member of membersList) {
+        if (member.email?.toLowerCase() !== currentUser?.email?.toLowerCase()) {
+          sendLeagueInvite(member.email, newLeague.name, commName);
+        }
+      }
 
       // Reset form
       setNewLeague({
@@ -1150,16 +1160,21 @@ const OmnifantasyApp = () => {
 
           {/* Leagues Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredLeagues.map(league => (
+            {filteredLeagues.map(league => {
+              const myMembership = league.membersList?.find(m => m.email.toLowerCase() === currentUser?.email?.toLowerCase());
+              const isPendingInvite = myMembership?.status === 'pending';
+              return (
               <div
                 key={league.id}
-                onClick={() => openLeague(league.id)}
-                className={`bg-slate-800/50 backdrop-blur-sm border rounded-xl overflow-hidden transition-all cursor-pointer group ${
-                  league.draftStarted &&
-                  !league.draftComplete &&
-                  league.currentPickerEmail?.toLowerCase() === currentUser?.email?.toLowerCase()
-                    ? 'border-green-400/80 shadow-xl shadow-green-500/20'
-                    : 'border-slate-700/50 hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/10'
+                onClick={isPendingInvite ? undefined : () => openLeague(league.id)}
+                className={`bg-slate-800/50 backdrop-blur-sm border rounded-xl overflow-hidden transition-all ${
+                  isPendingInvite
+                    ? 'border-amber-500/60 shadow-lg shadow-amber-500/10'
+                    : league.draftStarted &&
+                      !league.draftComplete &&
+                      league.currentPickerEmail?.toLowerCase() === currentUser?.email?.toLowerCase()
+                      ? 'border-green-400/80 shadow-xl shadow-green-500/20 cursor-pointer group'
+                      : 'border-slate-700/50 hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/10 cursor-pointer group'
                 }`}
               >
                 {/* League Header */}
@@ -1232,7 +1247,9 @@ const OmnifantasyApp = () => {
                     ))}
                   </div>
                   <div className="text-xs text-slate-400">
-                    {league.draftStarted
+                    {isPendingInvite
+                      ? <span className="text-amber-400 font-semibold">⏳ Invite pending — accept to join</span>
+                      : league.draftStarted
                       ? league.draftComplete
                         ? <span className="text-emerald-400 font-semibold">Draft complete</span>
                         : <>
@@ -1268,16 +1285,53 @@ const OmnifantasyApp = () => {
                           </>
                       : 'Draft not started'}
                   </div>
+
                 </div>
 
-                {/* League Stats & Progress */}
+                {isPendingInvite ? (
+                  /* Pending invite: Accept / Decline */
+                  <div className="p-6 space-y-4">
+                    <p className="text-sm text-slate-300">
+                      <span className="font-semibold text-white">{league.commissionerEmail?.split('@')[0]}</span> invited you to this league.
+                    </p>
+                    <div className="flex gap-3">
+                      <button
+                        disabled={inviteActionLoading === league.id}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          setInviteActionLoading(league.id);
+                          await acceptLeagueInvite(league.id, currentUser.email);
+                          await reloadLeagues();
+                          setInviteActionLoading(null);
+                        }}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
+                      >
+                        {inviteActionLoading === league.id ? 'Saving…' : '✓ Accept'}
+                      </button>
+                      <button
+                        disabled={inviteActionLoading === league.id}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          setInviteActionLoading(league.id);
+                          await declineLeagueInvite(league.id, currentUser.email);
+                          await reloadLeagues();
+                          setInviteActionLoading(null);
+                        }}
+                        className="flex-1 bg-slate-700 hover:bg-red-900/50 hover:border-red-500/50 disabled:opacity-50 text-slate-300 hover:text-red-300 font-semibold py-2 px-4 rounded-lg border border-slate-600 transition-colors text-sm"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                /* League Stats & Progress */
                 <div className="p-6 space-y-4">
                   {/* Points and Progress */}
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400 text-sm">Total Points</span>
                     <span className="text-white font-bold text-lg">{league.totalPoints}</span>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-400">Championships Complete</span>
@@ -1286,7 +1340,7 @@ const OmnifantasyApp = () => {
                       </span>
                     </div>
                     <div className="w-full bg-slate-700/50 rounded-full h-2">
-                      <div 
+                      <div
                         className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all"
                         style={{ width: `${(league.sportsComplete / league.sportsTotal) * 100}%` }}
                       ></div>
@@ -1330,8 +1384,10 @@ const OmnifantasyApp = () => {
                     </button>
                   </div>
                 </div>
+                )}
               </div>
-            ))}
+              );
+            })}
 
             {/* Empty State */}
             {filteredLeagues.length === 0 && (

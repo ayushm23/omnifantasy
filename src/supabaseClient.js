@@ -85,12 +85,14 @@ export const createLeague = async (leagueData) => {
 
   if (leagueError) return { data: null, error: leagueError };
 
-  // Insert league members
+  // Insert league members — commissioner auto-accepted, others pending
+  const commissionerEmail = leagueData.commissionerEmail?.toLowerCase();
   const members = leagueData.membersList.map((member, index) => ({
     league_id: league.id,
     email: member.email,
     name: member.name,
     draft_position: index,
+    status: member.email?.toLowerCase() === commissionerEmail ? 'accepted' : 'pending',
   }));
 
   const { error: membersError } = await supabase
@@ -108,9 +110,11 @@ export const getMyLeagues = async (userEmail) => {
     .select(`
       *,
       league_members (
+        id,
         email,
         name,
-        draft_position
+        draft_position,
+        status
       )
     `)
     .order('created_at', { ascending: false });
@@ -575,4 +579,57 @@ export const subscribeToLeagueChat = (leagueId, callback) => {
       callback
     )
     .subscribe();
+};
+
+// ============ LEAGUE INVITE / MEMBER MANAGEMENT ============
+
+export const acceptLeagueInvite = async (leagueId, userEmail) => {
+  const { error } = await supabase
+    .from('league_members')
+    .update({ status: 'accepted' })
+    .eq('league_id', leagueId)
+    .eq('email', userEmail);
+  return { error };
+};
+
+export const declineLeagueInvite = async (leagueId, userEmail) => {
+  const { error } = await supabase
+    .from('league_members')
+    .update({ status: 'declined' })
+    .eq('league_id', leagueId)
+    .eq('email', userEmail);
+  return { error };
+};
+
+// Add a new member to a pre-draft league (commissioner only).
+// Returns { data, error } — error if email already in league.
+export const addLeagueMember = async (leagueId, email) => {
+  const { data, error } = await supabase
+    .from('league_members')
+    .insert([{ league_id: leagueId, email: email.trim().toLowerCase(), name: '', draft_position: 0, status: 'pending' }])
+    .select()
+    .single();
+  return { data, error };
+};
+
+// Remove any member from a pre-draft league (commissioner only).
+export const removeLeagueMember = async (memberId) => {
+  const { error } = await supabase
+    .from('league_members')
+    .delete()
+    .eq('id', memberId);
+  return { error };
+};
+
+// Send a league invite email via the Edge Function (fire-and-forget).
+// Does NOT throw — caller should not block on this.
+export const sendLeagueInvite = async (memberEmail, leagueName, commissionerName) => {
+  try {
+    const appUrl = window.location.origin;
+    await supabase.functions.invoke('send-league-invite', {
+      body: { memberEmail, leagueName, commissionerName, appUrl }
+    });
+  } catch (e) {
+    console.warn('sendLeagueInvite: failed to send invite email', e);
+  }
 };
