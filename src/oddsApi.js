@@ -92,9 +92,6 @@ function americanToImpliedProbability(odds) {
   return Math.abs(odds) / (Math.abs(odds) + 100);
 }
 
-  return result;
-}
-
 /**
  * Fetch odds for a single Odds API sport key and convert to expected points.
  * Returns { 'Team Name': expectedPoints, ... }
