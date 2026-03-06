@@ -362,6 +362,7 @@ const LeagueView = (props) => {
 
         {/* Standings Tab */}
         {leagueTab === 'standings' && (
+          <>
           <div className="space-y-4">
             {standings.length === 0 ? (
               <EmptyState icon="📋" title="No Standings Yet" description="Standings will appear once the draft is complete." />
@@ -705,7 +706,7 @@ const LeagueView = (props) => {
               </div>
             );
           })()}
-        </div>
+          </>
         )}
 
         {/* Big Board Tab */}
