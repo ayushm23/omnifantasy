@@ -36,18 +36,18 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `src/oddsScraper.js` - Data fetcher for sports not on The Odds API (F1, Men's Tennis, Women's Tennis). F1 uses Jolpica API mid-season, all use market-derived preseason odds as fallback.
 - `src/useExpectedPoints.js` - React hook that wraps `oddsApi.js` for component use. Returns `{ expectedPoints, loading, error, refreshExpectedPoints }`. `loading` is exposed as `epLoading` in `omnifantasy-app.jsx` and passed via `AppContext`.
 - `src/useTeamNews.js` - Fetches recent news from ESPN API for a team/sport. Returns `{ news: [], hasTeamNews: bool, loading }`. Searches headlines for team name; falls back to top sport headlines. 10-minute in-memory cache.
-- `database-setup.sql` - Complete database schema with RLS policies
-- `database-migration-timer.sql` - Migration for `pick_started_at` column (draft timer)
-- `database-migration-picker-name.sql` - Migration for `picker_name` column
-- `database-migration-odds-cache.sql` - Migration for `odds_cache` table
-- `database-migration-results.sql` - Migration for `sport_results` table
-- `database-migration-third-round-reversal.sql` - Migration for `third_round_reversal` on `draft_state`
-- `database-migration-draft-sport-requirement.sql` - Migration for `draft_every_sport_required` on `draft_state`
-- `database-migration-timer-pause-window.sql` - Migration for `timer_pause_start_hour`/`timer_pause_end_hour` on `leagues`
-- `database-migration-draft-queue.sql` - Migration for `draft_queue` and `draft_member_settings` tables
-- `database-migration-ep-history.sql` - Migration for `ep_history` table (EP trend data for team popups)
-- `database-migration-league-chat.sql` - Migration for `league_chat` table (per-league real-time chat)
-- `database-migration-league-emoji.sql` - Migration for `league_emoji TEXT DEFAULT '🏆'` column on `leagues`
+- `database/database-setup.sql` - Complete database schema with RLS policies
+- `database/database-migration-timer.sql` - Migration for `pick_started_at` column (draft timer)
+- `database/database-migration-picker-name.sql` - Migration for `picker_name` column
+- `database/database-migration-odds-cache.sql` - Migration for `odds_cache` table
+- `database/database-migration-results.sql` - Migration for `sport_results` table
+- `database/database-migration-third-round-reversal.sql` - Migration for `third_round_reversal` on `draft_state`
+- `database/database-migration-draft-sport-requirement.sql` - Migration for `draft_every_sport_required` on `draft_state`
+- `database/database-migration-timer-pause-window.sql` - Migration for `timer_pause_start_hour`/`timer_pause_end_hour` on `leagues`
+- `database/database-migration-draft-queue.sql` - Migration for `draft_queue` and `draft_member_settings` tables
+- `database/database-migration-ep-history.sql` - Migration for `ep_history` table (EP trend data for team popups)
+- `database/database-migration-league-chat.sql` - Migration for `league_chat` table (per-league real-time chat)
+- `database/database-migration-league-emoji.sql` - Migration for `league_emoji TEXT DEFAULT '🏆'` column on `leagues`
 - `src/useDraftQueue.js` - React hook for managing a user's personal draft queue and per-league draft settings. Returns `{ queue, settings, loading, error, addItem, removeItem, moveItem, reorderAll, clearAll, updateSettings, reload }`. Mutations use optimistic state updates with snapshot+restore rollback on DB failure; `error` is set on failure and cleared on the next mutation attempt. `reorderAll(reorderedItems)` bulk-reorders the queue optimistically and calls `bulkReorderQueue` in `supabaseClient.js`.
 - `src/useEPHistory.js` - React hook: `useEPHistory(sportCode, teamName)` → `{ history: [{date, ep}], loading }`. Fetches EP trend data for a team from the `ep_history` table.
 - `src/components/TeamPopup.jsx` - Modal popup showing current EP, EP trend chart (Recharts LineChart), and recent news for a team. Time frame selector (1W/1M/3M/All) for chart. Opens when any team name is clicked in DraftView or LeagueView. Props: `{ sport, team, currentEP, onClose }`.
@@ -413,9 +413,9 @@ Simplified to prevent infinite recursion:
 
 7. **Sport options not showing in draft room**: Use `getSportNameByCode(sportCode)` from `src/config/sports.js` before looking up `TEAM_POOLS`.
 
-8. **Infinite recursion error**: Re-run `database-setup.sql` with simplified RLS policies.
+8. **Infinite recursion error**: Re-run `database/database-setup.sql` with simplified RLS policies.
 
-9. **odds_cache table not found**: Run `database-migration-odds-cache.sql` in Supabase SQL Editor.
+9. **odds_cache table not found**: Run `database/database-migration-odds-cache.sql` in Supabase SQL Editor.
 
 10. **Euro/WorldCup not appearing in sport selector**: Year-gated by `isTournamentYear()` — only shows in tournament years.
 
@@ -425,15 +425,15 @@ Simplified to prevent infinite recursion:
 
 13. **Wrong standings sort (all zeros)**: Ensure `generateStandings` is called with all five args: `generateStandings(league, supabasePicks, userEmail, sportResults, previousRankMap)`. Missing `supabasePicks` or `sportResults` causes zero-point rows. `previousRankMap` can be `{}` if no snapshot exists.
 
-14. **`sport_results` table not found**: Run `database-migration-results.sql` in Supabase SQL Editor.
+14. **`sport_results` table not found**: Run `database/database-migration-results.sql` in Supabase SQL Editor.
 
-15. **`draft_queue` or `draft_member_settings` table not found**: Run `database-migration-draft-queue.sql` in Supabase SQL Editor.
+15. **`draft_queue` or `draft_member_settings` table not found**: Run `database/database-migration-draft-queue.sql` in Supabase SQL Editor.
 
 16. **Auto-pick countdown fires on mount**: Auto-pick logic lives in `src/hooks/useAutoPickLogic.js` (extracted from `omnifantasy-app.jsx`). The immediate queue auto-pick effect guards against mount using `prevCurrentPickRef` — it only fires when `currentPick` changes from a previous value to the user's turn. If this breaks, verify the `prevCurrentPickRef` tracking logic inside the hook.
 
 17. **Queue not showing in DraftView**: Verify all queue-related props are passed to `<DraftView>` in `omnifantasy-app.jsx`: `queue`, `draftSettings`, `autoPickCountdown`, `cancelAutoPickCountdown`, `onAddToQueue`, `onRemoveFromQueue`, `onMoveQueueItem`, `onClearQueue`, `onUpdateDraftSettings`, `leagueHasOtcEmails`, `queueError`.
 
-18. **`ep_history` table not found**: Run `database-migration-ep-history.sql` in Supabase SQL Editor.
+18. **`ep_history` table not found**: Run `database/database-migration-ep-history.sql` in Supabase SQL Editor.
 
 19. **Team popup chart shows no data**: Normal on first deploy — `ep_history` starts empty. Data accumulates after the first odds cache refresh cycle (~2 days). If a specific team is missing, check that their name in `TEAM_POOLS` exactly matches the key stored in `snapshot_data` (which uses the same `aggregated` object from `fetchExpectedPoints`, already normalized via `NAME_ALIASES`).
 
@@ -514,19 +514,19 @@ const pts = calculatePickPoints(pick, sportResults);
 
 ## Migrations (run in order after database-setup.sql)
 
-1. `database-migration-timer.sql` — Adds `pick_started_at` column to `draft_state`
-2. `database-migration-picker-name.sql` — Adds `picker_name` column to `draft_picks`
-3. `database-migration-odds-cache.sql` — Adds `odds_cache` table for shared EP caching
-4. `database-migration-results.sql` — Adds `sport_results` table for automatic points assignment
-5. `database-migration-third-round-reversal.sql` — Adds `third_round_reversal BOOLEAN DEFAULT false` to `draft_state`
-6. `database-migration-draft-sport-requirement.sql` — Adds `draft_every_sport_required BOOLEAN DEFAULT true` to `draft_state`
-7. `database-migration-timer-pause-window.sql` — Adds `timer_pause_start_hour INTEGER DEFAULT 0` and `timer_pause_end_hour INTEGER DEFAULT 8` to `leagues`
-8. `database-migration-draft-queue.sql` — Creates `draft_queue` and `draft_member_settings` tables with RLS
-9. `database-migration-ep-history.sql` — Creates `ep_history` table for EP trend chart data with RLS and index
-10. `database-migration-league-chat.sql` — Creates `league_chat` table with RLS and index
-11. `database-migration-league-emoji.sql` — Adds `league_emoji TEXT DEFAULT '🏆'` to `leagues`
+1. `database/database-migration-timer.sql` — Adds `pick_started_at` column to `draft_state`
+2. `database/database-migration-picker-name.sql` — Adds `picker_name` column to `draft_picks`
+3. `database/database-migration-odds-cache.sql` — Adds `odds_cache` table for shared EP caching
+4. `database/database-migration-results.sql` — Adds `sport_results` table for automatic points assignment
+5. `database/database-migration-third-round-reversal.sql` — Adds `third_round_reversal BOOLEAN DEFAULT false` to `draft_state`
+6. `database/database-migration-draft-sport-requirement.sql` — Adds `draft_every_sport_required BOOLEAN DEFAULT true` to `draft_state`
+7. `database/database-migration-timer-pause-window.sql` — Adds `timer_pause_start_hour INTEGER DEFAULT 0` and `timer_pause_end_hour INTEGER DEFAULT 8` to `leagues`
+8. `database/database-migration-draft-queue.sql` — Creates `draft_queue` and `draft_member_settings` tables with RLS
+9. `database/database-migration-ep-history.sql` — Creates `ep_history` table for EP trend chart data with RLS and index
+10. `database/database-migration-league-chat.sql` — Creates `league_chat` table with RLS and index
+11. `database/database-migration-league-emoji.sql` — Adds `league_emoji TEXT DEFAULT '🏆'` to `leagues`
 
-New columns added directly to `database-setup.sql` (no separate migration files):
+New columns added directly to `database/database-setup.sql` (no separate migration files):
 - `draft_rounds` on `leagues`
 - `send_otc_emails`, `draft_date` on `leagues`
 
