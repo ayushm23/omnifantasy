@@ -543,8 +543,8 @@ const DraftView = (props) => {
             <>
             <h2 className="text-xl font-bold text-white mb-4">Make Your Pick</h2>
 
-            {/* My Queue */}
-            <div className="mb-6 p-4 bg-slate-700/30 rounded-lg">
+            {/* My Queue — desktop only; mobile uses bottom sheet */}
+            <div className="hidden md:block mb-6 p-4 bg-slate-700/30 rounded-lg">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold text-white">My Queue</span>
