@@ -293,8 +293,8 @@ const DraftView = (props) => {
         // Call database function which handles both pick insertion and draft state update
         await makePickDB(pickData);
 
-        // Notify next picker (fire-and-forget; respects league + user OTC email prefs)
-        sendOtcEmail(selectedLeagueId);
+        // Notify next picker after a short delay so draft_state.current_pick is committed
+        setTimeout(() => sendOtcEmail(selectedLeagueId), 1500);
 
         // Auto-remove from queue if this team was queued
         const queueEntry = queuePositionMap.get(`${sport}::${team}`);

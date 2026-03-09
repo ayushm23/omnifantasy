@@ -156,7 +156,7 @@ export function useAutoPickLogic({
           team: chosen.team,
           team_name: chosen.team,
         });
-        sendOtcEmail(selectedLeagueId); // fire-and-forget
+        setTimeout(() => sendOtcEmail(selectedLeagueId), 1500); // delay so draft_state.current_pick is committed
       } catch {
         // Clear the key so a retry attempt can fire on the next timerExpired cycle
         lastAutoPickKeyRef.current = null;
@@ -221,7 +221,7 @@ export function useAutoPickLogic({
                   team: finalPick.team,
                   team_name: finalPick.team,
                 });
-                sendOtcEmail(selectedLeagueId); // fire-and-forget
+                setTimeout(() => sendOtcEmail(selectedLeagueId), 1500); // delay so draft_state.current_pick is committed
               } catch {
                 // Pick failed (race condition or validation) — ignore
               }
