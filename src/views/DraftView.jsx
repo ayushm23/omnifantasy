@@ -1377,7 +1377,7 @@ const DraftView = (props) => {
                     onClick={() => setMobileSheet('queue')}
                     className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${mobileSheet === 'queue' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
                   >
-                    Queue {(queue?.length || 0) > 0 ? `(${queue.length})` : ''}
+                    {(() => { const n = (queue||[]).filter(i=>!(supabasePicks||[]).some(p=>p.sport===i.sport&&p.team_name===i.team)).length; return `Queue${n>0?` (${n})`:''}`; })()}
                   </button>
                   <button
                     onClick={() => setMobileSheet('roster')}
@@ -1394,12 +1394,28 @@ const DraftView = (props) => {
               {/* ── Queue tab ── */}
               {mobileSheet === 'queue' && (
                 <>
+                  {showClearQueueConfirm && (
+                    <ConfirmModal
+                      title="Clear Queue"
+                      message={`Remove all ${queue.length} item${queue.length !== 1 ? 's' : ''} from your queue?`}
+                      confirmLabel="Clear All"
+                      confirmClassName="bg-red-600 hover:bg-red-700 text-white"
+                      onConfirm={() => { onClearQueue(); setShowClearQueueConfirm(false); }}
+                      onCancel={() => setShowClearQueueConfirm(false)}
+                    />
+                  )}
+                  {(() => {
+                    const visibleQueue = (queue || []).filter((item) => !(supabasePicks || []).some(
+                      (p) => p.sport === item.sport && p.team_name === item.team
+                    ));
+                    return (
+                  <>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-white">My Queue</span>
-                      {(queue?.length || 0) > 0 && <span className="text-xs text-slate-400">({queue.length})</span>}
+                      {visibleQueue.length > 0 && <span className="text-xs text-slate-400">({visibleQueue.length})</span>}
                     </div>
-                    {(queue?.length || 0) > 0 && (
+                    {visibleQueue.length > 0 && (
                       <button
                         onClick={() => setShowClearQueueConfirm(true)}
                         className="text-xs px-2 py-1 text-slate-400 hover:text-red-400 border border-slate-600/50 hover:border-red-500/50 rounded transition-colors"
@@ -1413,16 +1429,13 @@ const DraftView = (props) => {
                       Queue error: {queueError.message || String(queueError)} — try again
                     </div>
                   )}
-                  {!(queue?.length) ? (
+                  {visibleQueue.length === 0 ? (
                     <div className="text-sm text-slate-500 italic text-center py-4">
                       — Queue empty — tap + on a team to add it
                     </div>
                   ) : (
                     <div className="space-y-1">
                       {(() => {
-                        const visibleQueue = queue.filter((item) => !(supabasePicks || []).some(
-                          (p) => p.sport === item.sport && p.team_name === item.team
-                        ));
                         return visibleQueue.map((item, idx) => {
                           const itemEp = getExpectedPoints(item.sport, item.team);
                           const canPickFromQueue = (
@@ -1460,6 +1473,9 @@ const DraftView = (props) => {
                       <span className="text-sm text-slate-300">Auto-pick from queue</span>
                     </label>
                   </div>
+                  </>
+                    );
+                  })()}
                 </>
               )}
 
