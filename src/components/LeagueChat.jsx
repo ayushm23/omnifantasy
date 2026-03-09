@@ -64,11 +64,14 @@ export default function LeagueChat({ leagueId, currentUser, isOpen, onOpen, onCl
     }
   }, [messages.length, isOpen]);
 
-  // Clear unread + focus input when panel opens
+  // Clear unread + focus input when panel opens (skip focus on touch devices to prevent iOS zoom)
   useEffect(() => {
     if (isOpen) {
       clearUnread();
-      setTimeout(() => inputRef.current?.focus(), 50);
+      const isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+      if (!isTouchDevice) {
+        setTimeout(() => inputRef.current?.focus(), 50);
+      }
     }
   }, [isOpen, clearUnread]);
 
@@ -219,8 +222,8 @@ export default function LeagueChat({ leagueId, currentUser, isOpen, onOpen, onCl
                   onKeyDown={handleKeyDown}
                   placeholder="Message your league…"
                   rows={1}
-                  className="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none leading-snug"
-                  style={{ maxHeight: '80px', overflowY: 'auto' }}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-base sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none leading-snug"
+                  style={{ maxHeight: '80px', overflowY: 'auto', fontSize: '16px' }}
                 />
                 {overLimit && (
                   <span className="absolute bottom-1.5 right-2 text-xs text-red-400">{inputText.length}/500</span>

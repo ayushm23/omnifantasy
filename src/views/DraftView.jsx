@@ -11,7 +11,7 @@ import { getUserInitials, getUserDisplayName } from '../utils/userDisplay';
 import { formatHourLabel } from '../utils/format';
 import TeamPopup from '../components/TeamPopup';
 import { useAppContext } from '../context/AppContext';
-
+import { sendOtcEmail } from '../supabaseClient';
 
 const DraftView = (props) => {
   const {
@@ -45,8 +45,15 @@ const DraftView = (props) => {
   };
     const fallbackDraftOrder = (selectedLeague?.membersList || []).map((member) => normalizeDraftPicker(member));
     const hasPersistedOrder = Array.isArray(supabaseDraftState?.draftOrder) && supabaseDraftState.draftOrder.length > 0;
+    // Enrich stored draft order with fresh names from membersList (handles post-signup name syncs)
     const effectiveDraftOrder = hasPersistedOrder
-      ? supabaseDraftState.draftOrder.map((picker) => normalizeDraftPicker(picker)).filter(Boolean)
+      ? supabaseDraftState.draftOrder.map((picker) => {
+          const norm = normalizeDraftPicker(picker);
+          const freshMember = selectedLeague?.membersList?.find(
+            m => m.email?.toLowerCase() === norm?.email?.toLowerCase()
+          );
+          return freshMember?.name ? { ...norm, name: freshMember.name } : norm;
+        }).filter(Boolean)
       : fallbackDraftOrder;
     const effectiveCurrentPick = supabaseDraftState?.currentPick || ((supabasePicks?.length || 0) + 1);
     const effectiveCurrentRound = supabaseDraftState?.currentRound || Math.ceil(effectiveCurrentPick / Math.max(1, effectiveDraftOrder.length));
@@ -285,6 +292,9 @@ const DraftView = (props) => {
       try {
         // Call database function which handles both pick insertion and draft state update
         await makePickDB(pickData);
+
+        // Notify next picker (fire-and-forget; respects league + user OTC email prefs)
+        sendOtcEmail(selectedLeagueId);
 
         // Auto-remove from queue if this team was queued
         const queueEntry = queuePositionMap.get(`${sport}::${team}`);

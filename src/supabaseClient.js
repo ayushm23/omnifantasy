@@ -621,6 +621,31 @@ export const removeLeagueMember = async (memberId) => {
   return { error };
 };
 
+// Sync the authenticated user's display name into all their league_members rows.
+// Called on login/signup so other members see first+last name instead of email prefixes.
+// RLS "Members can self-update status" policy allows updating own rows.
+export const syncMemberName = async (userEmail, displayName) => {
+  if (!userEmail || !displayName) return { error: null };
+  const { error } = await supabase
+    .from('league_members')
+    .update({ name: displayName })
+    .eq('email', userEmail.toLowerCase());
+  return { error };
+};
+
+// Notify the next picker via email (fire-and-forget after every pick).
+// Reads league.send_otc_emails AND picker's receive_otc_emails before sending.
+export const sendOtcEmail = async (leagueId) => {
+  try {
+    const appUrl = window.location.origin;
+    await supabase.functions.invoke('send-otc-email', {
+      body: { leagueId, appUrl },
+    });
+  } catch (e) {
+    console.warn('sendOtcEmail: failed', e);
+  }
+};
+
 // Send a league invite email via the Edge Function (fire-and-forget).
 // Does NOT throw — caller should not block on this.
 export const sendLeagueInvite = async (memberEmail, leagueName, commissionerName) => {

@@ -49,7 +49,11 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `database/database-migration-league-chat.sql` - Migration for `league_chat` table (per-league real-time chat)
 - `database/database-migration-league-emoji.sql` - Migration for `league_emoji TEXT DEFAULT '🏆'` column on `leagues`
 - `database/database-migration-member-status.sql` - Migration for `status` column on `league_members` (invite/accept flow)
-- `src/useDraftQueue.js` - React hook for managing a user's personal draft queue and per-league draft settings. Returns `{ queue, settings, loading, error, addItem, removeItem, moveItem, reorderAll, clearAll, updateSettings, reload }`. Mutations use optimistic state updates with snapshot+restore rollback on DB failure; `error` is set on failure and cleared on the next mutation attempt. `reorderAll(reorderedItems)` bulk-reorders the queue optimistically and calls `bulkReorderQueue` in `supabaseClient.js`.
+- `database/database-migration-draft-reminders.sql` - Migration for `draft_reminders` table (OTC/1h reminder dedup) + `get_user_otc_pref(p_email)` SECURITY DEFINER RPC + commented pg_cron setup
+- `supabase/functions/send-otc-email/index.ts` - Edge Function: emails next picker immediately after each pick (fire-and-forget); checks `leagues.send_otc_emails` + picker's `receive_otc_emails` via `get_user_otc_pref` RPC
+- `supabase/functions/check-timer-reminders/index.ts` - Edge Function: cron job (every 15 min); sends "1 hour left" reminder to pickers whose timer is within 1h of expiry; deduplicates via `draft_reminders` table; requires `APP_URL` secret
+- `supabase/functions/_shared/draft-helpers.ts` - Shared Deno module: `getPickerIndex`, `normalizeDraftPicker`, `timerStringToMs`, `computeTimeRemaining` (pause-aware), `sendEmail`, `escapeHtml`
+- `src/useDraftQueue.js` - React hook for managing a user's personal draft queue and per-league draft settings. Returns `{ queue, settings, loading, error, addItem, removeItem, moveItem, reorderAll, clearAll, updateSettings, reload }`. Mutations use optimistic state updates with snapshot+restore rollback on DB failure; `error` is set on failure and cleared on the next mutation attempt. `reorderAll(reorderedItems)` bulk-reorders the queue optimistically and calls `reorderQueue` in `supabaseClient.js`.
 - `src/useEPHistory.js` - React hook: `useEPHistory(sportCode, teamName)` → `{ history: [{date, ep}], loading }`. Fetches EP trend data for a team from the `ep_history` table.
 - `src/components/TeamPopup.jsx` - Modal popup showing current EP, EP trend chart (Recharts LineChart), and recent news for a team. Time frame selector (1W/1M/3M/All) for chart. Opens when any team name is clicked in DraftView or LeagueView. Props: `{ sport, team, currentEP, onClose }`.
 - `src/components/SportBadge.jsx` - Sport code/name badge with color styling. Props: `sport`, `size` ('sm'|'md'|'pill'), `className`
@@ -259,11 +263,11 @@ EP totals show an asterisk `*` with tooltip "Some picks lack odds data — EP to
 
 - **`generateDraftBoard(picks, currentUserEmail)`** — Maps raw DB picks to `[{ ...pick, isUser: bool }]`. Takes `currentUserEmail` explicitly.
 
-- **`compareByEP(a, b, expectedPoints, sportCode)`** — Comparator for sorting teams by EP descending; falls back to alphabetical when EP is equal or missing.
+- **`compareByEP(a, b)`** — Comparator for sorting rows `{ ep, team }` by EP descending (NaN-safe; nulls sort last), with alphabetical tiebreak. Usage: `arr.sort((a,b) => dir === 'asc' ? compareByEP(a,b) : -compareByEP(a,b))`.
 
-- **`wouldBreakSportCoverage(sport, picks, draftState, league)`** — Returns `true` if picking `sport` would leave too few remaining teams for members who still need that sport (only relevant when `draft_every_sport_required = true`).
+- **`wouldBreakSportCoverage({ sportRequirementEnabled, leagueSports, pool, draftEmails, picks, pickerEmail, sport, team })`** — Returns `true` if picking `team` in `sport` would leave too few remaining teams for members who still need that sport (only relevant when `draft_every_sport_required = true`). Called both client-side in the UI and server-side inside `makePick` in `supabaseClient.js`.
 
-- **`picksUntilTurn(draftState, userEmail)`** — Returns the number of picks until it is `userEmail`'s next turn, based on the current pick and snake draft order. Used for the auto-pick countdown display in DraftView.
+- **`picksUntilTurn({ myEmail, draftOrder, currentPick, currentRound, isSnake, thirdRoundReversal })`** — Returns the number of picks until it is `myEmail`'s next turn (searches up to `numMembers * 2` picks ahead). Used for the auto-pick countdown display in DraftView.
 
 ### `src/utils/standings.js`
 

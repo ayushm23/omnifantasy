@@ -7,7 +7,7 @@ import { useDraftQueue } from './useDraftQueue';
 import { useAutoPickLogic } from './hooks/useAutoPickLogic';
 import { isSportSupported } from './oddsApi';
 import { calculatePickPoints } from './utils/points';
-import { updateLeague, getPickerQueue, updateUserMetadata, sendLeagueInvite, acceptLeagueInvite, declineLeagueInvite } from './supabaseClient';
+import { updateLeague, getPickerQueue, updateUserMetadata, sendLeagueInvite, acceptLeagueInvite, declineLeagueInvite, syncMemberName } from './supabaseClient';
 import {
   AVAILABLE_SPORTS,
   TEAM_POOLS,
@@ -54,6 +54,15 @@ const OmnifantasyApp = () => {
   useEffect(() => {
     setShowLoginModal(!user);
   }, [user]);
+
+  // Sync the authenticated user's real name into league_members on every login/signup.
+  // Runs only when the user identity changes (email). Skips if no first_name in metadata.
+  useEffect(() => {
+    if (!user?.email || !user?.user_metadata?.first_name) return;
+    const displayName = getUserDisplayName(user);
+    syncMemberName(user.email, displayName).then(() => reloadLeagues());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email]);
 
 
   // Active sport tab in draft room
