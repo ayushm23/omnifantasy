@@ -39,12 +39,11 @@ Deno.serve(async (req) => {
     );
     const appUrl = Deno.env.get('APP_URL') || '';
 
-    // Load all active leagues that have timers and OTC emails enabled
+    // Load all active leagues that have timers
     const { data: leagues } = await admin
       .from('leagues')
-      .select('id, name, draft_rounds, draft_timer, send_otc_emails, timer_pause_start_hour, timer_pause_end_hour')
+      .select('id, name, draft_rounds, draft_timer, timer_pause_start_hour, timer_pause_end_hour')
       .eq('draft_started', true)
-      .eq('send_otc_emails', true)
       .not('draft_timer', 'eq', 'none')
       .not('draft_timer', 'is', null);
 

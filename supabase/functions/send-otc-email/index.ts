@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     const [{ data: league }, { data: state }] = await Promise.all([
       admin
         .from('leagues')
-        .select('name, send_otc_emails, draft_rounds, draft_timer, timer_pause_start_hour, timer_pause_end_hour')
+        .select('name, draft_rounds, draft_timer, timer_pause_start_hour, timer_pause_end_hour')
         .eq('id', leagueId)
         .single(),
       admin
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
         .single(),
     ]);
 
-    if (!league?.send_otc_emails)    return skip('league OTC emails disabled');
+    if (!league) return skip('league not found');
     if (!state?.draft_order?.length) return skip('no draft order');
 
     const numMembers = state.draft_order.length;
