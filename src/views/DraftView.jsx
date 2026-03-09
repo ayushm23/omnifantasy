@@ -641,17 +641,19 @@ const DraftView = (props) => {
                 </div>
               )}
 
-              {showClearQueueConfirm && (
-                <ConfirmModal
-                  title="Clear Queue"
-                  message={`Remove all ${queue.length} item${queue.length !== 1 ? 's' : ''} from your queue?`}
-                  confirmLabel="Clear All"
-                  confirmClassName="bg-red-600 hover:bg-red-700 text-white"
-                  onConfirm={() => { onClearQueue(); setShowClearQueueConfirm(false); }}
-                  onCancel={() => setShowClearQueueConfirm(false)}
-                />
-              )}
             </div>
+
+            {/* Clear queue confirm — rendered outside the hidden-on-mobile queue section */}
+            {showClearQueueConfirm && (
+              <ConfirmModal
+                title="Clear Queue"
+                message={`Remove all ${queue.length} item${queue.length !== 1 ? 's' : ''} from your queue?`}
+                confirmLabel="Clear All"
+                confirmClassName="bg-red-600 hover:bg-red-700 text-white"
+                onConfirm={() => { onClearQueue(); setShowClearQueueConfirm(false); }}
+                onCancel={() => setShowClearQueueConfirm(false)}
+              />
+            )}
 
             <div className="mb-4 flex flex-col md:flex-row gap-2">
               <input
@@ -984,8 +986,10 @@ const DraftView = (props) => {
             onClick={() => setMobileSheet(mobileSheet === 'queue' ? null : 'queue')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${mobileSheet === 'queue' ? 'bg-blue-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}
           >
-            Queue {(queue?.length || 0) > 0 ? `(${queue.length})` : '(empty)'}
-            {(queue?.length || 0) > 0 && draftSettings?.autoPickFromQueue && <span className="text-xs text-blue-300">[auto]</span>}
+            {(() => {
+              const undrafted = (queue || []).filter(item => !(supabasePicks || []).some(p => p.sport === item.sport && p.team_name === item.team));
+              return <>Queue {undrafted.length > 0 ? `(${undrafted.length})` : '(empty)'}{undrafted.length > 0 && draftSettings?.autoPickFromQueue && <span className="text-xs text-blue-300 ml-1">[auto]</span>}</>;
+            })()}
             <span className="text-slate-400 text-xs">{mobileSheet === 'queue' ? '▼' : '▲'}</span>
           </button>
           <button
