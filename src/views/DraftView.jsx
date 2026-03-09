@@ -342,7 +342,7 @@ const DraftView = (props) => {
     }, [rollbackRound, rollbackPickInRound, maxRoundOption, maxRollbackOverall]);
 
     return (
-      <div className="h-screen flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" style={{ height: '100dvh' }}>
         {/* Draft Header */}
         <div className="bg-slate-800/60 backdrop-blur-sm border-b border-slate-700 shrink-0 z-50">
           <div className="max-w-7xl mx-auto px-3 md:px-6 py-4">
