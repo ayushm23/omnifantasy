@@ -404,6 +404,20 @@ const DraftView = (props) => {
                           <button onClick={() => { setShowRulesModal(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">📖 Rules</button>
                           <button onClick={() => { setShowSportsModal(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">🏟️ Sports</button>
                           {!isDraftComplete && <button onClick={() => { setShowUserSettings(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"><Settings size={14} /> Settings</button>}
+                          {selectedLeague?.commissionerEmail === currentUser?.email && supabasePicks?.length > 0 && (
+                            <button
+                              onClick={() => {
+                                setRollbackMode('target');
+                                setRollbackRound(Math.min(Math.max(1, effectiveCurrentRound), maxRoundOption));
+                                setRollbackPickInRound(Math.max(1, currentPickInRound));
+                                setShowRollbackModal(true);
+                                setShowMobileMenu(false);
+                              }}
+                              className="w-full text-left px-4 py-3 text-sm text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors"
+                            >
+                              ↩ Roll Back Draft
+                            </button>
+                          )}
                           <div className="border-t border-slate-700">
                             <div className="px-4 py-2 text-xs text-slate-500">{getUserDisplayName(currentUser)}</div>
                             <button onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm text-slate-400 hover:bg-slate-700 hover:text-red-400 transition-colors">Logout</button>
