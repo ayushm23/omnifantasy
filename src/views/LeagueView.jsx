@@ -347,6 +347,7 @@ const LeagueView = (props) => {
         {/* Tabs */}
         <div className="overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
           <div className="flex gap-2 border-b border-slate-700/50 mb-6 min-w-max md:min-w-0">
+            <TabButton label="My Roster" isActive={leagueTab === 'my-roster'} onClick={() => setLeagueTab('my-roster')} />
             <TabButton label="Standings" isActive={leagueTab === 'standings'} onClick={() => setLeagueTab('standings')} />
             {/* Only show Big Board if draft has started */}
             {selectedLeague?.draftStarted && (
@@ -356,7 +357,6 @@ const LeagueView = (props) => {
             {selectedLeague?.draftStarted && draftBoard.length >= (selectedLeague.members * selectedLeague.draftRounds) && (
               <TabButton label="Draft Results" isActive={leagueTab === 'draft-results'} onClick={() => setLeagueTab('draft-results')} />
             )}
-            <TabButton label="My Roster" isActive={leagueTab === 'my-roster'} onClick={() => setLeagueTab('my-roster')} />
           </div>
         </div>
 

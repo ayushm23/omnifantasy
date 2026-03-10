@@ -7,7 +7,7 @@ import { useDraftQueue } from './useDraftQueue';
 import { useAutoPickLogic } from './hooks/useAutoPickLogic';
 import { isSportSupported } from './oddsApi';
 import { calculatePickPoints } from './utils/points';
-import { updateLeague, getPickerQueue, updateUserMetadata, sendLeagueInvite, acceptLeagueInvite, declineLeagueInvite, syncMemberName } from './supabaseClient';
+import { updateLeague, getPickerQueue, updateUserMetadata, sendLeagueInvite, acceptLeagueInvite, declineLeagueInvite, syncMemberName, sendOtcEmail } from './supabaseClient';
 import {
   AVAILABLE_SPORTS,
   TEAM_POOLS,
@@ -75,7 +75,7 @@ const OmnifantasyApp = () => {
   const [currentView, setCurrentView] = useState('home'); // 'home', 'league', or 'draft'
   const [selectedLeagueId, setSelectedLeagueId] = useState(null);
   const [activeTab, setActiveTab] = useState('active'); // For homepage: 'active' or 'completed'
-  const [leagueTab, setLeagueTab] = useState('standings'); // For league page: 'standings', 'big-board', 'draft-results', or 'my-roster'
+  const [leagueTab, setLeagueTab] = useState('my-roster'); // For league page: 'my-roster', 'standings', 'big-board', 'draft-results'
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDraftSettingsModal, setShowDraftSettingsModal] = useState(false);
   const [showStartDraftConfirmation, setShowStartDraftConfirmation] = useState(false);
@@ -1030,6 +1030,8 @@ const OmnifantasyApp = () => {
       setDraftState(initialDraftState);
       await reloadLeagues();
       setCurrentView('draft');
+      // Notify the first picker — delay so draft_state.current_pick is committed
+      setTimeout(() => sendOtcEmail(selectedLeagueId), 2000);
     }).catch(error => {
       console.error('Error starting draft:', error);
       alert('Failed to start draft: ' + error.message);
