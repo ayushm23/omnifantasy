@@ -353,8 +353,8 @@ const LeagueView = (props) => {
             {selectedLeague?.draftStarted && (
               <TabButton label="Big Board" isActive={leagueTab === 'big-board'} onClick={() => setLeagueTab('big-board')} />
             )}
-            {/* Only show Draft Results if draft is COMPLETE */}
-            {selectedLeague?.draftStarted && draftBoard.length >= (selectedLeague.members * selectedLeague.draftRounds) && (
+            {/* Show Draft Results as soon as the first pick is made */}
+            {selectedLeague?.draftStarted && draftBoard.length > 0 && (
               <TabButton label="Draft Results" isActive={leagueTab === 'draft-results'} onClick={() => setLeagueTab('draft-results')} />
             )}
           </div>
