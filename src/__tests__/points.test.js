@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculatePickPoints, filterResultsForLeague } from '../utils/points';
+import { calculatePickPoints, filterResultsForLeague, getPartialMultiEventPoints } from '../utils/points';
 
 // ---------------------------------------------------------------------------
 // calculatePickPoints
@@ -246,5 +246,82 @@ describe('filterResultsForLeague', () => {
   it('marks is_complete false when not all relevant events are done', () => {
     const filtered = filterResultsForLeague(fullResults, '2026-01-01');
     expect(filtered.Golf.is_complete).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getPartialMultiEventPoints
+// ---------------------------------------------------------------------------
+
+describe('getPartialMultiEventPoints', () => {
+  const inProgressResults = {
+    Golf: {
+      is_complete: false,
+      events: [
+        {
+          name: 'Masters', is_complete: true,
+          champion: 'Scheffler', runner_up: 'McIlroy',
+          semifinals: ['Hovland'], quarterfinalists: [], ninth_to_sixteenth: ['Fowler'],
+        },
+        {
+          name: 'PGA', is_complete: false,
+          champion: null, runner_up: null, semifinals: [], quarterfinalists: [],
+        },
+      ],
+    },
+  };
+
+  it('returns null for non-multi-event sports', () => {
+    const r = { NFL: { is_complete: false, champion: null } };
+    expect(getPartialMultiEventPoints({ sport: 'NFL', team_name: 'Chiefs' }, r)).toBeNull();
+  });
+
+  it('returns null when sport is already complete', () => {
+    const complete = { Golf: { ...inProgressResults.Golf, is_complete: true } };
+    expect(getPartialMultiEventPoints({ sport: 'Golf', team_name: 'Scheffler' }, complete)).toBeNull();
+  });
+
+  it('returns null when no events are complete yet', () => {
+    const noEvents = {
+      Golf: { is_complete: false, events: [{ name: 'Masters', is_complete: false }] },
+    };
+    expect(getPartialMultiEventPoints({ sport: 'Golf', team_name: 'Scheffler' }, noEvents)).toBeNull();
+  });
+
+  it('returns accumulated event points and progress for winner', () => {
+    const result = getPartialMultiEventPoints({ sport: 'Golf', team_name: 'Scheffler' }, inProgressResults);
+    expect(result).not.toBeNull();
+    expect(result.accumulated).toBe(8); // Masters win = 8
+    expect(result.eventsComplete).toBe(1);
+    expect(result.eventsTotal).toBe(2);
+  });
+
+  it('returns accumulated event points for runner-up', () => {
+    const result = getPartialMultiEventPoints({ sport: 'Golf', team_name: 'McIlroy' }, inProgressResults);
+    expect(result.accumulated).toBe(5); // Masters runner-up = 5
+  });
+
+  it('returns 0 accumulated for player with no results yet', () => {
+    const result = getPartialMultiEventPoints({ sport: 'Golf', team_name: 'Koepka' }, inProgressResults);
+    expect(result.accumulated).toBe(0);
+    expect(result.eventsComplete).toBe(1);
+  });
+
+  it('works for Tennis sports', () => {
+    const tennisResults = {
+      MensTennis: {
+        is_complete: false,
+        events: [
+          {
+            name: 'French Open', is_complete: true,
+            champion: 'Sinner', runner_up: 'Alcaraz',
+            semifinals: ['Zverev'], quarterfinalists: [], round_of_sixteen: [],
+          },
+        ],
+      },
+    };
+    const result = getPartialMultiEventPoints({ sport: 'MensTennis', team_name: 'Sinner' }, tennisResults);
+    expect(result.accumulated).toBe(8);
+    expect(result.eventsComplete).toBe(1);
   });
 });

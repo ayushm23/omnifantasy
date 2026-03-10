@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Plus, X, ArrowLeft, Trash2, Settings, UserPlus, UserMinus, Users } from 'lucide-react';
 import { addLeagueMember, removeLeagueMember, sendLeagueInvite } from '../supabaseClient';
 import { getCurrentPickerFromState, picksUntilTurn } from '../utils/draft';
-import { calculatePickPoints } from '../utils/points';
+import { calculatePickPoints, getPartialMultiEventPoints } from '../utils/points';
 import { getSportDisplayCode, getSportNameByCode } from '../config/sports';
 import { getUserInitials, getUserDisplayName } from '../utils/userDisplay';
 import { formatHourLabel } from '../utils/format';
@@ -449,12 +449,21 @@ const LeagueView = (props) => {
                                         p.picker_email?.toLowerCase() === team.email?.toLowerCase() && p.sport === sport
                                       );
                                       const pts = pick ? calculatePickPoints(pick, sportResults) : null;
+                                      const partial = pts === null && pick ? getPartialMultiEventPoints(pick, sportResults) : null;
                                       return (
                                         <div key={sport} className="text-center">
                                           <div className="text-[10px] text-slate-500 uppercase">{getSportDisplayCode(sport)}</div>
-                                          <div className={`text-sm font-bold ${pts > 0 ? 'text-green-400' : pts === 0 ? 'text-slate-500' : 'text-slate-400'}`}>
-                                            {pts === null ? '…' : pts > 0 ? `+${pts}` : '—'}
-                                          </div>
+                                          {pts > 0 ? (
+                                            <div className="text-sm font-bold text-green-400">+{pts}</div>
+                                          ) : pts === 0 ? (
+                                            <div className="text-sm font-bold text-slate-500">—</div>
+                                          ) : partial ? (
+                                            <div className="text-sm font-bold text-amber-400" title={`${partial.eventsComplete}/${partial.eventsTotal} events done`}>
+                                              ~{partial.accumulated}
+                                            </div>
+                                          ) : (
+                                            <div className="text-sm font-bold text-slate-400">…</div>
+                                          )}
                                         </div>
                                       );
                                     })}
@@ -567,6 +576,21 @@ const LeagueView = (props) => {
                                           ? <span className="text-green-400 font-bold text-sm">+{earned}</span>
                                           : <span className="text-slate-500 text-sm">0</span>
                                         }
+                                      </div>
+                                    );
+                                  }
+                                  // In-progress Golf/Tennis: show accumulated internal event points
+                                  const partials = sportPicks.map(p => getPartialMultiEventPoints(p, sportResults)).filter(Boolean);
+                                  if (partials.length > 0) {
+                                    const totalAccumulated = partials.reduce((sum, p) => sum + p.accumulated, 0);
+                                    const { eventsComplete, eventsTotal } = partials[0];
+                                    return (
+                                      <div key={sport} className="text-center" title={`${eventsComplete} of ${eventsTotal} events complete`}>
+                                        {totalAccumulated > 0
+                                          ? <span className="text-amber-400 font-bold text-sm">~{totalAccumulated}</span>
+                                          : <span className="text-slate-500 text-sm">~0</span>
+                                        }
+                                        <div className="text-[9px] text-slate-500">{eventsComplete}/{eventsTotal}</div>
                                       </div>
                                     );
                                   }

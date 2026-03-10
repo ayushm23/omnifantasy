@@ -63,6 +63,39 @@ function computeMultiEventRankings(events, getEventPointsFn) {
   return playerData.map(d => d.player);
 }
 
+const MULTI_EVENT_SPORTS = new Set(['Golf', 'MensTennis', 'WomensTennis']);
+
+/**
+ * For in-progress Golf/Tennis sports, returns the accumulated internal event
+ * points (8/5/3/2/1 per event) across all completed events.
+ *
+ * Returns null when:
+ *   - sport is not Golf/Tennis
+ *   - sport results are absent
+ *   - sport is already complete (use calculatePickPoints for final Omnifantasy pts)
+ *   - no events have finished yet
+ *
+ * Returns { accumulated: number, eventsComplete: number, eventsTotal: number }
+ * when ≥1 event is done but the overall season is not yet complete.
+ */
+export function getPartialMultiEventPoints(pick, resultsMap) {
+  const sport = pick.sport;
+  if (!MULTI_EVENT_SPORTS.has(sport)) return null;
+  const results = resultsMap?.[sport];
+  if (!results || results.is_complete) return null; // not applicable or already final
+
+  const events = results.events || [];
+  const eventsTotal = events.length;
+  const completedEvents = events.filter(e => e.is_complete);
+  if (completedEvents.length === 0) return null;
+
+  const team = pick.team_name || pick.team;
+  const getEventPts = sport === 'Golf' ? golfEventPoints : tennisEventPoints;
+  const accumulated = completedEvents.reduce((sum, evt) => sum + getEventPts(team, evt), 0);
+
+  return { accumulated, eventsComplete: completedEvents.length, eventsTotal };
+}
+
 /**
  * Returns the points awarded to a single pick given the results map.
  * Returns null if the sport is not yet complete (so callers can show "TBD").
