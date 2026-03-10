@@ -16,7 +16,7 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 
 - `src/main.jsx` - Entry point; wraps app in ErrorBoundary for render crash recovery
 - `src/omnifantasy-app.jsx` - Main application component: shared state, auth UI, home view, and modal orchestration
-- `src/views/LeagueView.jsx` - League detail page component (standings, big board, roster, draft results tabs)
+- `src/views/LeagueView.jsx` - League detail page component (tabs: My Roster, Standings, Big Board, Draft Results; default tab: `'my-roster'`)
 - `src/views/DraftView.jsx` - Draft room component (live drafting interface with sport tabs and EP display)
 - `src/config/sports.js` - Sports configuration: `AVAILABLE_SPORTS`, `TEAM_POOLS`, `EP_DRIVEN_POOL_SPORTS`, color helpers, `isTournamentYear`
 - `src/utils/draft.js` - Draft helpers: `generateDraftBoard`, `formatPickNumber`, `getPickerIndex`, `normalizeDraftPicker`, `getCurrentPickerFromState`, `compareByEP`, `wouldBreakSportCoverage`, `picksUntilTurn`
@@ -50,7 +50,7 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `database/database-migration-league-emoji.sql` - Migration for `league_emoji TEXT DEFAULT '🏆'` column on `leagues`
 - `database/database-migration-member-status.sql` - Migration for `status` column on `league_members` (invite/accept flow)
 - `database/database-migration-draft-reminders.sql` - Migration for `draft_reminders` table (OTC/1h reminder dedup) + `get_user_otc_pref(p_email)` SECURITY DEFINER RPC + commented pg_cron setup
-- `supabase/functions/send-otc-email/index.ts` - Edge Function: emails next picker immediately after each pick (fire-and-forget); checks `leagues.send_otc_emails` + picker's `receive_otc_emails` via `get_user_otc_pref` RPC
+- `supabase/functions/send-otc-email/index.ts` - Edge Function: emails next picker after each pick (fire-and-forget, 1.5s delay to avoid stale `draft_state`); checks **only** picker's `receive_otc_emails` via `get_user_otc_pref` RPC (league-level `send_otc_emails` is no longer checked by Edge Functions)
 - `supabase/functions/check-timer-reminders/index.ts` - Edge Function: cron job (every 15 min); sends "1 hour left" reminder to pickers whose timer is within 1h of expiry; deduplicates via `draft_reminders` table; requires `APP_URL` secret
 - `supabase/functions/_shared/draft-helpers.ts` - Shared Deno module: `getPickerIndex`, `normalizeDraftPicker`, `timerStringToMs`, `computeTimeRemaining` (pause-aware), `sendEmail`, `escapeHtml`
 - `src/useDraftQueue.js` - React hook for managing a user's personal draft queue and per-league draft settings. Returns `{ queue, settings, loading, error, addItem, removeItem, moveItem, reorderAll, clearAll, updateSettings, reload }`. Mutations use optimistic state updates with snapshot+restore rollback on DB failure; `error` is set on failure and cleared on the next mutation attempt. `reorderAll(reorderedItems)` bulk-reorders the queue optimistically and calls `reorderQueue` in `supabaseClient.js`.
@@ -75,7 +75,7 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 The app uses early-return `if` blocks in `omnifantasy-app.jsx` for view switching, but the actual view JSX is in separate components:
 
 - **`'home'`** - My Leagues page: league cards with status, "Your turn!" indicators (rendered inline in `omnifantasy-app.jsx`)
-- **`'league'`** - `<LeagueView>` component: tabs for Standings, Big Board, My Roster, Draft Results
+- **`'league'`** - `<LeagueView>` component: tabs in order: My Roster, Standings, Big Board, Draft Results (default tab: `'my-roster'`); Draft Results tab appears as soon as the first pick is made
 - **`'draft'`** - `<DraftView>` component: live drafting interface with sport-grouped team selection, EP displayed per option
 
 **Modals** (create league, draft settings, start draft confirmation) are rendered in `omnifantasy-app.jsx` and passed down or conditionally rendered per view.
@@ -341,7 +341,7 @@ Notes:
 - **Timer Pause Window**: `timer_pause_start_hour` / `timer_pause_end_hour` on `leagues` (default 0–8, i.e. midnight–8am); configurable per league
 - **Third Round Reversal**: `third_round_reversal` on `draft_state` — snake reverses at rounds 2+3 then continues alternating from round 4
 - **Draft Every Sport Required**: `draft_every_sport_required` on `draft_state` — forces picks to cover all league sports
-- **Send OTC Emails**: `send_otc_emails` on `leagues` — email notifications when it's a member's turn
+- **Send OTC Emails**: `send_otc_emails` on `leagues` — UI toggle still stored in DB but Edge Functions no longer gate on it; per-user `receive_otc_emails` in `user_metadata` is the sole control. First picker is notified 2s after `startDraft()` via `sendOtcEmail()` in `omnifantasy-app.jsx`.
 
 ### Draft Confirmation Modal
 - `showStartDraftConfirmation` state controls visibility
@@ -415,6 +415,7 @@ The app is fully responsive with a `md` (768px) breakpoint as the primary split:
 - **Standings collapse cards**: On mobile, standings render as tap-to-expand cards (rank + name + points visible; per-sport breakdown revealed on tap). Desktop keeps the full table.
 - **Sports catalog modal**: Bottom-anchored (`rounded-t-2xl`, no centering) on mobile; centered `md:rounded-2xl` modal on desktop. `max-h-[80vh]` on mobile, `md:max-h-[90vh]` on desktop. Team names use `line-clamp-2` instead of `truncate` for better narrow-screen display.
 - **Draft board**: Card-based stacking on mobile; full grid on desktop.
+- **Draft Results tab**: Card layout on mobile; full table on desktop.
 
 ### Home Page Features
 - **Sports modal** (`showHomeSportsModal`): 🏟️ Sports button in header opens a full EP browser for all selectable sports (search, filter by sport, sort by EP or name). EP is fetched for ALL selectable sports while on the home page (`epSportCodes = homeSportCodes`), not just a selected league's sports. While `epLoading` is true, the modal shows 6 skeleton rows instead of data.
@@ -611,3 +612,8 @@ These were previously deferred and are now shipped:
 - **2026 preseason odds** — `F1_PRESEASON_ODDS`, `ATP_ODDS`, `WTA_ODDS` in `oddsScraper.js` updated for 2026 season; F1 pool includes Liam Lawson and Kimi Antonelli
 - **EP_METHODOLOGY.md** — Standalone reference doc explaining EP calculation, data sources, caching, and API budget
 - **Database folder** — All SQL files organized under `database/` subfolder
+- **League invite/accept flow** — `league_members.status` (pending/accepted/declined); invite emails via Edge Function; Accept/Decline on home cards; member management panel in LeagueView; draft start blocked until all members accepted
+- **OTC email improvements** — Edge Functions no longer gate on `leagues.send_otc_emails`; per-user `receive_otc_emails` is sole control; first picker notified 2s after draft starts; `sendOtcEmail` calls use 1.5s delay to avoid stale `draft_state` race condition
+- **LeagueView tab reorder** — Tabs now: My Roster → Standings → Big Board → Draft Results; default tab is `'my-roster'`
+- **Draft Results tab** — Visible as soon as first pick is made (was gated on draft completion); card layout on mobile, table on desktop
+- **Mobile Draft Results** — Card layout on mobile, full table on desktop

@@ -11,6 +11,58 @@
 //   Multi-event (Golf/Tennis): { events: [{ name, champion, runner_up, semifinals[], quarterfinalists[], is_complete }], is_complete, season }
 //   F1:            { standings: [ordered driver names], is_complete, season }
 
+// ─── Multi-event sport helpers ───────────────────────────────────────────────
+// Mirrored from resultsApi.js (intentional — avoids circular imports).
+// Keep both copies in sync if scoring rules change.
+
+function golfEventPoints(player, event) {
+  if (!event?.is_complete) return 0;
+  if (player === event.champion) return 8;
+  if (player === event.runner_up) return 5;
+  if (event.semifinals?.includes(player)) return 3;
+  if (event.quarterfinalists?.includes(player)) return 2;
+  if (event.ninth_to_sixteenth?.includes(player)) return 1;
+  return 0;
+}
+
+function tennisEventPoints(player, event) {
+  if (!event?.is_complete) return 0;
+  if (player === event.champion) return 8;
+  if (player === event.runner_up) return 5;
+  if (event.semifinals?.includes(player)) return 3;
+  if (event.quarterfinalists?.includes(player)) return 2;
+  if (event.round_of_sixteen?.includes(player)) return 1;
+  return 0;
+}
+
+function computeMultiEventRankings(events, getEventPointsFn) {
+  const completedEvents = events.filter(e => e.is_complete);
+  if (completedEvents.length === 0) return [];
+
+  const playerSet = new Set();
+  for (const event of completedEvents) {
+    [
+      event.champion,
+      event.runner_up,
+      ...(event.semifinals || []),
+      ...(event.quarterfinalists || []),
+      ...(event.ninth_to_sixteenth || []),
+      ...(event.round_of_sixteen || []),
+    ].filter(Boolean).forEach(p => playerSet.add(p));
+  }
+
+  const playerData = [];
+  for (const player of playerSet) {
+    const pts = completedEvents.map(e => getEventPointsFn(player, e));
+    const total = pts.reduce((a, b) => a + b, 0);
+    const best = Math.max(...pts, 0);
+    if (total > 0) playerData.push({ player, total, best });
+  }
+
+  playerData.sort((a, b) => b.total - a.total || b.best - a.best);
+  return playerData.map(d => d.player);
+}
+
 /**
  * Returns the points awarded to a single pick given the results map.
  * Returns null if the sport is not yet complete (so callers can show "TBD").
@@ -32,7 +84,18 @@ export function calculatePickPoints(pick, resultsMap) {
   }
 
   if (pick.sport === 'Golf' || pick.sport === 'MensTennis' || pick.sport === 'WomensTennis') {
-    // Sum points from all completed major events
+    // New system: Omnifantasy 80/50/30/20 awarded once based on accumulated
+    // golf/tennis points ranking across all 4 majors.
+    if (results.rankings) {
+      const pos = results.rankings.indexOf(team);
+      if (pos < 0) return 0;
+      if (pos === 0) return 80;
+      if (pos === 1) return 50;
+      if (pos === 2 || pos === 3) return 30;
+      if (pos >= 4 && pos <= 7) return 20;
+      return 0;
+    }
+    // Fallback for old cache entries without rankings (pre-v2 format)
     return (results.events || []).reduce((sum, event) => {
       return sum + getSingleEventPoints(team, event);
     }, 0);
@@ -91,9 +154,15 @@ export function filterResultsForLeague(results, draftDate) {
       return evtStart >= draft;
     });
 
+    // Recompute rankings from the filtered events so scoring reflects only
+    // the events that count for this league's draft date.
+    const getEventPointsFn = sport === 'Golf' ? golfEventPoints : tennisEventPoints;
+    const rankings = computeMultiEventRankings(relevantEvents, getEventPointsFn);
+
     filtered[sport] = {
       ...sportResult,
       events: relevantEvents,
+      rankings,
       // is_complete only when all relevant events have finished
       is_complete: relevantEvents.length > 0 && relevantEvents.every(e => e.is_complete),
     };

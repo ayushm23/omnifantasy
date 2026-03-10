@@ -28,6 +28,8 @@ const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 
 const COMPLETE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
 const IN_PROGRESS_TTL = 4 * 60 * 60 * 1000;     // 4 hours
+// Bump this when the result shape changes to force-invalidate stale cached results
+const RESULTS_CACHE_VERSION = 2;
 
 // ─── Sport → ESPN path configuration ────────────────────────────────────────
 
@@ -356,6 +358,12 @@ async function fetchTournamentResults(tournamentConfig) {
       return round.includes('quarterfinal') || round.includes('quarter-final');
     });
 
+    const r16Comps = event.competitions.filter(c => {
+      const round = (c.type?.text || c.status?.type?.name || '').toLowerCase();
+      return round.includes('round of 16') || round.includes('4th round') ||
+             round.includes('fourth round') || round === 'r16';
+    });
+
     // For golf (stroke play), the competitors list on the tournament event holds the leaderboard.
     // The "winner" is the first-place finisher.
     // ESPN golf scoreboard competitors are sorted by position.
@@ -381,12 +389,19 @@ async function fetchTournamentResults(tournamentConfig) {
       .filter(Boolean)
       .map(r => r.loser);
 
+    // Players who reached the 4th round (R16) but lost there — earns 1 tennis point each
+    const round_of_sixteen = r16Comps
+      .map(c => getWinnerLoser(c))
+      .filter(Boolean)
+      .map(r => r.loser);
+
     return {
       name,
       champion:        finalResult.winner,
       runner_up:       finalResult.loser,
       semifinals,
       quarterfinalists,
+      round_of_sixteen,
       is_complete: true,
       approxMonth,
       year,
@@ -429,40 +444,111 @@ function parsGolfResults(event, name) {
   const semifinals      = [sorted[2], sorted[3]].filter(Boolean).map(getName);
   const quarterfinalists= [sorted[4], sorted[5], sorted[6], sorted[7]].filter(Boolean).map(getName);
 
+  // Strictly include only players whose position.id is 9–16
+  const ninth_to_sixteenth = sorted
+    .filter(c => {
+      const pos = parseInt(c.status?.position?.id, 10);
+      return pos >= 9 && pos <= 16;
+    })
+    .map(getName);
+
   if (!champion) return { name, is_complete: false };
 
-  return { name, champion, runner_up, semifinals, quarterfinalists, is_complete: true };
+  return { name, champion, runner_up, semifinals, quarterfinalists, ninth_to_sixteenth, is_complete: true };
+}
+
+// ─── Golf / Tennis points & ranking helpers ──────────────────────────────────
+// These are mirrored in points.js (intentional — avoids circular imports).
+// Keep both copies in sync if scoring rules change.
+
+function golfEventPoints(player, event) {
+  if (!event?.is_complete) return 0;
+  if (player === event.champion) return 8;
+  if (player === event.runner_up) return 5;
+  if (event.semifinals?.includes(player)) return 3;
+  if (event.quarterfinalists?.includes(player)) return 2;
+  if (event.ninth_to_sixteenth?.includes(player)) return 1;
+  return 0;
+}
+
+function tennisEventPoints(player, event) {
+  if (!event?.is_complete) return 0;
+  if (player === event.champion) return 8;
+  if (player === event.runner_up) return 5;
+  if (event.semifinals?.includes(player)) return 3;
+  if (event.quarterfinalists?.includes(player)) return 2;
+  if (event.round_of_sixteen?.includes(player)) return 1;
+  return 0;
+}
+
+/**
+ * Build an ordered rankings array from completed multi-event results.
+ * Players are sorted by total accumulated points (desc), tiebroken by best
+ * single-event points (desc). Returns player names ordered from most to fewest.
+ * Only players who scored at least 1 point across all completed events are included.
+ */
+function computeMultiEventRankings(events, getEventPointsFn) {
+  const completedEvents = events.filter(e => e.is_complete);
+  if (completedEvents.length === 0) return [];
+
+  const playerSet = new Set();
+  for (const event of completedEvents) {
+    [
+      event.champion,
+      event.runner_up,
+      ...(event.semifinals || []),
+      ...(event.quarterfinalists || []),
+      ...(event.ninth_to_sixteenth || []),
+      ...(event.round_of_sixteen || []),
+    ].filter(Boolean).forEach(p => playerSet.add(p));
+  }
+
+  const playerData = [];
+  for (const player of playerSet) {
+    const pts = completedEvents.map(e => getEventPointsFn(player, e));
+    const total = pts.reduce((a, b) => a + b, 0);
+    const best = Math.max(...pts, 0);
+    if (total > 0) playerData.push({ player, total, best });
+  }
+
+  playerData.sort((a, b) => b.total - a.total || b.best - a.best);
+  return playerData.map(d => d.player);
 }
 
 /**
  * Fetch results for all 4 Golf majors.
- * Returns { events[], is_complete, season }
+ * Returns { events[], rankings[], is_complete, season }
  */
 async function fetchGolfResults() {
   const season = getSeasonYear('Golf');
   const events = await Promise.all(GOLF_MAJORS.map(fetchTournamentResults));
   const is_complete = events.every(e => e.is_complete);
-  return { events, is_complete, season };
+  const rankings = computeMultiEventRankings(events, golfEventPoints);
+  return { events, rankings, is_complete, season };
 }
 
 /**
  * Fetch results for all 4 Men's Tennis Grand Slams.
+ * Returns { events[], rankings[], is_complete, season }
  */
 async function fetchMensTennisResults() {
   const season = getSeasonYear('MensTennis');
   const events = await Promise.all(TENNIS_GRAND_SLAMS_MEN.map(fetchTournamentResults));
   const is_complete = events.every(e => e.is_complete);
-  return { events, is_complete, season };
+  const rankings = computeMultiEventRankings(events, tennisEventPoints);
+  return { events, rankings, is_complete, season };
 }
 
 /**
  * Fetch results for all 4 Women's Tennis Grand Slams.
+ * Returns { events[], rankings[], is_complete, season }
  */
 async function fetchWomensTennisResults() {
   const season = getSeasonYear('WomensTennis');
   const events = await Promise.all(TENNIS_GRAND_SLAMS_WOMEN.map(fetchTournamentResults));
   const is_complete = events.every(e => e.is_complete);
-  return { events, is_complete, season };
+  const rankings = computeMultiEventRankings(events, tennisEventPoints);
+  return { events, rankings, is_complete, season };
 }
 
 // ─── Main fetch function ─────────────────────────────────────────────────────
@@ -479,11 +565,16 @@ export async function fetchSportResults(sportCode) {
   try {
     const { data: cached } = await getResultsCache(sportCode, season);
     if (cached?.results && Object.keys(cached.results).length > 0) {
-      const age = Date.now() - new Date(cached.updated_at).getTime();
-      const ttl = cached.results.is_complete ? COMPLETE_TTL : IN_PROGRESS_TTL;
-      if (age < ttl) {
-        return cached.results;
+      const versionMatch = cached.results._v === RESULTS_CACHE_VERSION;
+      if (versionMatch) {
+        const age = Date.now() - new Date(cached.updated_at).getTime();
+        const ttl = cached.results.is_complete ? COMPLETE_TTL : IN_PROGRESS_TTL;
+        if (age < ttl) {
+          const { _v, ...data } = cached.results;
+          return data;
+        }
       }
+      // Version mismatch or stale — fall through to re-fetch
     }
   } catch {
     // Cache miss — proceed to fetch
@@ -511,9 +602,9 @@ export async function fetchSportResults(sportCode) {
 
   if (!results) return null;
 
-  // Store in cache
+  // Store in cache (include version so stale entries are detected on next read)
   try {
-    await upsertResultsCache(sportCode, season, results);
+    await upsertResultsCache(sportCode, season, { _v: RESULTS_CACHE_VERSION, ...results });
   } catch {
     // Cache write failed — not critical
   }
