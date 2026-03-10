@@ -15,6 +15,16 @@ export const getUserDisplayName = (user) => {
   return local || user?.email || '';
 };
 
+/**
+ * Returns the best available display name for a league member object.
+ * Reads .name from league_members, falling back to email prefix.
+ */
+export const getMemberDisplayName = (member) => {
+  if (member?.name && member.name.trim()) return member.name.trim();
+  const local = `${member?.email || ''}`.split('@')[0].trim();
+  return local || 'Unknown';
+};
+
 export const getUserInitials = (user) => {
   const meta = user?.user_metadata || {};
   const firstName = `${meta.first_name || ''}`.trim();

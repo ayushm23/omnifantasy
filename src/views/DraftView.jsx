@@ -7,7 +7,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import TimerDisplay from '../components/TimerDisplay';
 
 import { getSportDisplayCode } from '../config/sports';
-import { getUserInitials, getUserDisplayName } from '../utils/userDisplay';
+import { getUserInitials, getUserDisplayName, getMemberDisplayName } from '../utils/userDisplay';
 import { formatHourLabel } from '../utils/format';
 import TeamPopup from '../components/TeamPopup';
 import { useAppContext } from '../context/AppContext';
@@ -21,7 +21,7 @@ const DraftView = (props) => {
     getSportNameByCode, getDraftPoolForSport, expectedPoints,
     setPendingPick, setShowPickConfirmation, showPickConfirmation, pendingPick,
     queue, onAddToQueue, onRemoveFromQueue, onMoveQueueItem, onClearQueue,
-    queueError,
+    queueError, setLeagueTab,
   } = props;
 
   const {
@@ -33,16 +33,7 @@ const DraftView = (props) => {
     allSportCodes, epLoading,
   } = useAppContext();
 
-  const formatDisplayName = (member) => {
-    if (member?.name && member.name.trim()) return member.name.trim();
-    const local = member?.email?.split('@')[0] || '';
-    if (!local) return 'Unknown';
-    return local
-      .replace(/[._-]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-  };
+
     const fallbackDraftOrder = (selectedLeague?.membersList || []).map((member) => normalizeDraftPicker(member));
     const hasPersistedOrder = Array.isArray(supabaseDraftState?.draftOrder) && supabaseDraftState.draftOrder.length > 0;
     // Enrich stored draft order with fresh names from membersList (handles post-signup name syncs)
@@ -112,6 +103,7 @@ const DraftView = (props) => {
     const [rollbackRound, setRollbackRound] = useState(1);
     const [rollbackPickInRound, setRollbackPickInRound] = useState(1);
     const [pickError, setPickError] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [rollbackError, setRollbackError] = useState('');
     const [selectedTeamInfo, setSelectedTeamInfo] = useState(null); // { sport, team, currentEP } | null
     const teamInfoFromSportsRef = useRef(false); // true when popup was opened from the sports catalog modal
@@ -265,7 +257,7 @@ const DraftView = (props) => {
     );
 
     const makePick = async (sport, team) => {
-      if (isDraftComplete) {
+      if (isDraftComplete || isSubmitting) {
         return;
       }
       if (!canDraftForCurrentPicker) {
@@ -289,9 +281,13 @@ const DraftView = (props) => {
         team_name: team
       };
 
+      setIsSubmitting(true);
       try {
         // Call database function which handles both pick insertion and draft state update
         await makePickDB(pickData);
+
+        // Clear any previous error on success
+        setPickError('');
 
         // Notify next picker after a short delay so draft_state.current_pick is committed
         setTimeout(() => sendOtcEmail(selectedLeagueId), 1500);
@@ -305,6 +301,8 @@ const DraftView = (props) => {
       } catch (error) {
         console.error('Error making pick:', error);
         setPickError(error?.message ? `Failed to make pick: ${error.message}` : 'Failed to make pick. Please try again.');
+      } finally {
+        setIsSubmitting(false);
       }
     };
 
@@ -461,7 +459,7 @@ const DraftView = (props) => {
                   ) : (
                     <>
                       <div className="text-sm text-slate-400">On the Clock</div>
-                      <div className="text-xl font-bold text-white">{formatDisplayName(currentPicker)}</div>
+                      <div className="text-xl font-bold text-white">{getMemberDisplayName(currentPicker)}</div>
                       {isMyTurn && (
                         <div className="text-sm font-semibold text-green-400 mt-1 flex items-center gap-2 justify-end flex-wrap">
                           <span>Your Turn!</span>
@@ -531,13 +529,21 @@ const DraftView = (props) => {
               <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
                 <div className="text-5xl">🏆</div>
                 <h2 className="text-2xl font-bold text-emerald-400">Draft Complete!</h2>
-                <p className="text-slate-400 text-sm max-w-xs">All picks have been made. Head to the league page to view standings and results.</p>
-                <button
-                  onClick={() => setCurrentView('league')}
-                  className="mt-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold transition-colors"
-                >
-                  View League
-                </button>
+                <p className="text-slate-400 text-sm max-w-xs">All picks have been made.</p>
+                <div className="flex gap-3 mt-2">
+                  <button
+                    onClick={() => { setLeagueTab('draft-results'); setCurrentView('league'); }}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    View Draft Results
+                  </button>
+                  <button
+                    onClick={() => { setLeagueTab('standings'); setCurrentView('league'); }}
+                    className="px-5 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    View Standings
+                  </button>
+                </div>
               </div>
             ) : (
             <>
@@ -1103,10 +1109,10 @@ const DraftView = (props) => {
                       setShowPickConfirmation(false);
                       setPendingPick(null);
                     }}
-                    disabled={isDraftComplete}
-                    className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-semibold transition-all"
+                    disabled={isDraftComplete || isSubmitting}
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-all"
                   >
-                    {isDraftComplete ? 'Draft Complete' : 'Confirm Pick'}
+                    {isDraftComplete ? 'Draft Complete' : isSubmitting ? 'Submitting…' : 'Confirm Pick'}
                   </button>
                 </div>
               </div>

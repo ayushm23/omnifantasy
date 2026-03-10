@@ -49,7 +49,8 @@ export function useChatMessages(leagueId, userEmail, isOpen) {
 
       setMessages((prev) => {
         // Deduplicate: skip if we already have this id (e.g. optimistic insert)
-        if (prev.some((m) => m.id === newMsg.id)) return prev;
+        const ids = new Set(prev.map((m) => m.id));
+        if (ids.has(newMsg.id)) return prev;
         return [...prev, newMsg];
       });
 

@@ -400,17 +400,6 @@ const OmnifantasyApp = () => {
     expectedPoints,
   });
 
-  // When the draft finishes, navigate back to the league view after a short delay.
-  const draftTotalPicks = selectedLeague ? (selectedLeague.members * (selectedLeague.draftRounds || 8)) : 0;
-  const draftNowComplete = draftTotalPicks > 0 && (supabasePicks?.length || 0) >= draftTotalPicks;
-  useEffect(() => {
-    if (!draftNowComplete || currentView !== 'draft') return;
-    const t = setTimeout(() => {
-      setCurrentView('league');
-      setLeagueTab('draft-results');
-    }, 1500);
-    return () => clearTimeout(t);
-  }, [draftNowComplete, currentView]);
 
   // Keep an active draft sport selected when entering/changing leagues.
   useEffect(() => {
@@ -2277,6 +2266,7 @@ const OmnifantasyApp = () => {
           onClearQueue={clearQueue}
           onReorderQueue={reorderAllQueue}
           queueError={queueError}
+          setLeagueTab={setLeagueTab}
         />
         <LeagueChat
           leagueId={selectedLeagueId}

@@ -353,8 +353,8 @@ const LeagueView = (props) => {
             {selectedLeague?.draftStarted && (
               <TabButton label="Big Board" isActive={leagueTab === 'big-board'} onClick={() => setLeagueTab('big-board')} />
             )}
-            {/* Show Draft Results as soon as the first pick is made */}
-            {selectedLeague?.draftStarted && draftBoard.length > 0 && (
+            {/* Show Draft Results as soon as the draft starts */}
+            {selectedLeague?.draftStarted && (
               <TabButton label="Draft Results" isActive={leagueTab === 'draft-results'} onClick={() => setLeagueTab('draft-results')} />
             )}
           </div>
@@ -401,13 +401,6 @@ const LeagueView = (props) => {
                 {/* Scrollable standings table */}
                 {(() => {
                   const sports = selectedLeague?.sports || [];
-                  const SPORT_ABBREV = {
-                    NFL: 'NFL', NBA: 'NBA', MLB: 'MLB', NHL: 'NHL',
-                    NCAAF: 'CFB', NCAAMB: 'CBB', UCL: 'UCL', Euro: 'Euro',
-                    WorldCup: 'WC', F1: 'F1', Golf: 'Golf',
-                    MensTennis: 'ATP', WomensTennis: 'WTA',
-                  };
-
                   return (
                     <>
                       {/* Mobile collapsed standings */}
@@ -458,7 +451,7 @@ const LeagueView = (props) => {
                                       const pts = pick ? calculatePickPoints(pick, sportResults) : null;
                                       return (
                                         <div key={sport} className="text-center">
-                                          <div className="text-[10px] text-slate-500 uppercase">{SPORT_ABBREV[sport] || sport}</div>
+                                          <div className="text-[10px] text-slate-500 uppercase">{getSportDisplayCode(sport)}</div>
                                           <div className={`text-sm font-bold ${pts > 0 ? 'text-green-400' : pts === 0 ? 'text-slate-500' : 'text-slate-400'}`}>
                                             {pts === null ? '…' : pts > 0 ? `+${pts}` : '—'}
                                           </div>
@@ -486,7 +479,7 @@ const LeagueView = (props) => {
                             <div className="text-center">Pts</div>
                             <div className="text-center">EP</div>
                             {sports.map(sport => (
-                              <div key={sport} className="text-center">{SPORT_ABBREV[sport] || sport}</div>
+                              <div key={sport} className="text-center">{getSportDisplayCode(sport)}</div>
                             ))}
                           </div>
 
@@ -598,8 +591,8 @@ const LeagueView = (props) => {
             )}
           </div>
 
-          {/* Member Management Panel — pre-draft only */}
-          {!selectedLeague?.draftStarted && (() => {
+          {/* Member Management Panel — always visible to commissioner; add/remove only pre-draft */}
+          {isCommissioner && (() => {
             const members = selectedLeague?.membersList || [];
             const pendingCount = members.filter(m => m.status === 'pending').length;
             const declinedCount = members.filter(m => m.status === 'declined').length;
@@ -622,8 +615,8 @@ const LeagueView = (props) => {
                   </h3>
                 </div>
 
-                {/* Draft start status message */}
-                {isCommissioner && (() => {
+                {/* Draft start status message — pre-draft only */}
+                {!selectedLeague?.draftStarted && (() => {
                   const notReady = members.filter(m => m.status !== 'accepted');
                   if (notReady.length === 0) return null;
                   const pending = notReady.filter(m => m.status === 'pending');
@@ -664,7 +657,7 @@ const LeagueView = (props) => {
                         </div>
                         <div className="flex items-center gap-2 shrink-0 ml-2">
                           {statusBadge}
-                          {isCommissioner && !isCommissionerRow && (
+                          {!selectedLeague?.draftStarted && !isCommissionerRow && (
                             <button
                               onClick={() => setShowRemoveMemberConfirm(member)}
                               className="text-slate-500 hover:text-red-400 transition-colors p-1 rounded"
@@ -679,8 +672,8 @@ const LeagueView = (props) => {
                   })}
                 </div>
 
-                {/* Add member (commissioner only) */}
-                {isCommissioner && (
+                {/* Add member (commissioner only, pre-draft only) */}
+                {!selectedLeague?.draftStarted && (
                   <div className="pt-2 border-t border-slate-700/50">
                     <div className="flex gap-2">
                       <input
@@ -1234,31 +1227,6 @@ const LeagueView = (props) => {
                         );
                       })}
                     </select>
-                  </div>
-
-                  {/* OTC Emails */}
-                  <div>
-                    <h3 className="text-base font-semibold text-white mb-2">
-                      OTC Emails
-                    </h3>
-                    <p className="text-sm text-slate-400 mb-4">
-                      Off by default. Check this to send on-the-clock email notifications to league members.
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id="draftSettingsOtcEmails"
-                        checked={!!draftOrderSettings.sendOTCEmails}
-                        onChange={(e) => setDraftOrderSettings({
-                          ...draftOrderSettings,
-                          sendOTCEmails: e.target.checked
-                        })}
-                        className="w-5 h-5 bg-slate-900 border-slate-700 rounded"
-                      />
-                      <label htmlFor="draftSettingsOtcEmails" className="text-base font-semibold text-white">
-                        Send On the Clock Emails
-                      </label>
-                    </div>
                   </div>
 
                   <div className="pt-2 border-t border-slate-700/60">
