@@ -339,6 +339,32 @@ const OmnifantasyApp = () => {
   const { results: sportResults, loading: resultsLoading, error: resultsError, retryResults } = useResults(selectedLeague?.sports);
   const filteredSportResults = filterResultsForLeague(sportResults, selectedLeague?.draftDate);
 
+  // Deep-link handler: ?draft=<leagueId> opens the draft room directly.
+  // Runs once after the user is authenticated and leagues have loaded.
+  // Cleans the param from the URL so refreshing doesn't re-trigger.
+  useEffect(() => {
+    if (!user || leaguesLoading || leagues.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const targetLeagueId = params.get('draft');
+    if (!targetLeagueId) return;
+
+    // Remove the param from the URL without a page reload
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, '', cleanUrl);
+
+    const league = leagues.find(l => l.id === targetLeagueId);
+    if (!league?.draftStarted) return; // draft not active, ignore
+
+    const isMember = league.membersList?.some(
+      m => m.email.toLowerCase() === user.email.toLowerCase()
+    );
+    const isCommissioner = league.commissionerEmail?.toLowerCase() === user.email.toLowerCase();
+    if (!isMember && !isCommissioner) return;
+
+    setSelectedLeagueId(targetLeagueId);
+    setCurrentView('draft');
+  }, [user, leaguesLoading, leagues]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const getExpectedPoints = (sportCode, teamName) => {
     return expectedPoints?.[sportCode]?.[teamName] ?? null;
   };
