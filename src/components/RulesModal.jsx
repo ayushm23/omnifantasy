@@ -41,8 +41,7 @@ export default function RulesModal({ show, onClose }) {
                   <div><span className="font-semibold text-white">Snake-style draft:</span> Select teams from across various sports leagues, not individual players.</div>
                   <div><span className="font-semibold text-white">Draft-only format:</span> Once the draft is complete, sit back and watch your teams compete for championships throughout the year.</div>
                   <div><span className="font-semibold text-white">Customizable leagues:</span> Choose which sports to include. More leagues = fuller calendar and longer draft.</div>
-                  <div><span className="font-semibold text-white">Required picks:</span> Every drafter must pick at least one team from each sport in the league.</div>
-                  <div><span className="font-semibold text-white">FLEX picks:</span> Additional picks let you select second or third teams from whichever sports you prefer.</div>
+                  <div><span className="font-semibold text-white">FLEX picks:</span> Once you've covered the sports you care about, additional picks let you grab second or third teams from whichever sports you prefer.</div>
                   <div><span className="font-semibold text-white">Year-long contest:</span> A slow burn over a full calendar year. You'll have skin in the game each time a new sport's playoffs roll around!</div>
                   <div><span className="font-semibold text-white">Winner:</span> At year's end, whoever's roster performed best across all sports wins!</div>
                 </div>
@@ -135,8 +134,7 @@ export default function RulesModal({ show, onClose }) {
                     <span className="font-semibold text-white">Expected Points (EP):</span> Shown next to each pick option to help compare relative value. Derived from championship futures odds, converted to a probability of finishing champion / runner-up / semi / quarterfinalist, then weighted by Omnifantasy point values. A guide for first-timers — experienced players should do their own research.
                     <div className="mt-1 text-slate-400 italic">For Golf &amp; Tennis, EP is an approximation based on per-major win odds used as a proxy for overall season performance. The true scoring is determined by accumulated golf/tennis points across all 4 majors — a player who consistently finishes in the top 8 at every major may outscore one who wins a single event. For F1, EP is derived from live championship standings and maps directly to the final standings scoring.</div>
                   </div>
-                  <div><span className="font-semibold text-white">Required Picks:</span> Each drafter must select at least one team from each sport/league in the contest.</div>
-                  <div><span className="font-semibold text-white">FLEX Picks:</span> Can be made in any sport. They don't prevent others from meeting their requirement to pick one team per sport.</div>
+                  <div><span className="font-semibold text-white">FLEX Picks:</span> Can be made in any sport, on top of your core picks.</div>
                   <div><span className="font-semibold text-white">Stolen Points:</span> Undrafted teams finishing in the top 8 steal points from everyone. The next highest drafted team does NOT move up - they get points for their actual finish (e.g., if undrafted team wins, runner-up still gets 50 points, not 80).</div>
                   <div><span className="font-semibold text-white">Tiebreaker:</span> Final event to be decided breaks ties, then second-to-last, and so on. For typical February drafts, NFL is the tiebreaker sport.</div>
                   <div className="text-xs pt-2 border-t border-slate-600/30">
