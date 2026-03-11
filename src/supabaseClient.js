@@ -85,12 +85,30 @@ export const createLeague = async (leagueData) => {
 
   if (leagueError) return { data: null, error: leagueError };
 
-  // Insert league members — commissioner auto-accepted, others pending
+  // Insert league members — commissioner auto-accepted, others pending.
+  // For members with no name yet, look up any existing league_members row
+  // to pick up the name synced on their last login.
   const commissionerEmail = leagueData.commissionerEmail?.toLowerCase();
+  const needsNameLookup = leagueData.membersList
+    .filter(m => !m.name && m.email?.toLowerCase() !== commissionerEmail)
+    .map(m => m.email.trim().toLowerCase());
+
+  let knownNames = {};
+  if (needsNameLookup.length > 0) {
+    const { data: existingRows } = await supabase
+      .from('league_members')
+      .select('email, name')
+      .in('email', needsNameLookup)
+      .neq('name', '');
+    (existingRows || []).forEach(row => {
+      if (row.name && !knownNames[row.email]) knownNames[row.email] = row.name;
+    });
+  }
+
   const members = leagueData.membersList.map((member, index) => ({
     league_id: league.id,
     email: member.email,
-    name: member.name,
+    name: member.name || knownNames[member.email?.trim().toLowerCase()] || '',
     draft_position: index,
     status: member.email?.toLowerCase() === commissionerEmail ? 'accepted' : 'pending',
   }));
@@ -604,9 +622,24 @@ export const declineLeagueInvite = async (leagueId, userEmail) => {
 // Add a new member to a pre-draft league (commissioner only).
 // Returns { data, error } — error if email already in league.
 export const addLeagueMember = async (leagueId, email) => {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Look up an existing name from any other league the user is already in.
+  // syncMemberName() keeps all league_members rows current on login, so if
+  // the user has ever logged in their name will already be stored here.
+  const { data: existing } = await supabase
+    .from('league_members')
+    .select('name')
+    .eq('email', normalizedEmail)
+    .neq('name', '')
+    .limit(1)
+    .maybeSingle();
+
+  const name = existing?.name || '';
+
   const { data, error } = await supabase
     .from('league_members')
-    .insert([{ league_id: leagueId, email: email.trim().toLowerCase(), name: '', draft_position: 0, status: 'pending' }])
+    .insert([{ league_id: leagueId, email: normalizedEmail, name, draft_position: 0, status: 'pending' }])
     .select()
     .single();
   return { data, error };
