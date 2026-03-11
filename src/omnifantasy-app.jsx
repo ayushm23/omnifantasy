@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Plus, Users, X, Check, ArrowLeft, TrendingUp, TrendingDown, Minus, Trash2, Settings } from 'lucide-react';
+import { Plus, Users, X, Check, ArrowLeft, TrendingUp, TrendingDown, Minus, Trash2, Settings, Eye, EyeOff } from 'lucide-react';
 import { useAuth, useLeagues, useDraft } from './useSupabase';
 import { useExpectedPoints } from './useExpectedPoints';
 import { useResults } from './useResults';
@@ -46,6 +46,7 @@ const OmnifantasyApp = () => {
   const [loginLastName, setLoginLastName] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showHomeSportsModal, setShowHomeSportsModal] = useState(false);
   const [showHomeMobileMenu, setShowHomeMobileMenu] = useState(false);
@@ -904,17 +905,27 @@ const OmnifantasyApp = () => {
                 <label className="block text-sm font-semibold text-slate-300 mb-2">
                   Password
                 </label>
-                <input
-                  type="password"
-                  value={loginPassword}
-                  onChange={(e) => {
-                    setLoginPassword(e.target.value);
-                    setLoginError('');
-                  }}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
-                  placeholder="Enter your password"
-                  className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={loginPassword}
+                    onChange={(e) => {
+                      setLoginPassword(e.target.value);
+                      setLoginError('');
+                    }}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
+                    placeholder="Enter your password"
+                    className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 pr-11 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               {authMessage && (

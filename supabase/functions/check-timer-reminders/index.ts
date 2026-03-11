@@ -79,13 +79,10 @@ Deno.serve(async (req) => {
         state.pick_started_at, timerMs, pauseStart, pauseEnd,
       );
 
-      // Only act when we're within the 1-hour mark and haven't already passed it
-      if (timeRemaining <= 0 || timeRemaining > ONE_HOUR_MS) continue;
-
-      // Ensure we're within this cron tick's window of the 1-hour threshold
-      // (avoids re-sending if the cron somehow fires twice close together)
-      const passedBy = ONE_HOUR_MS - timeRemaining;
-      if (passedBy > CRON_WINDOW_MS) continue;
+      // Fire when timeRemaining is in the look-ahead window: [1h, 1h + cron_window].
+      // This ensures the email arrives before (not after) the 1-hour mark, so the
+      // subject "1 hour left" is accurate. The dedup table prevents double-sending.
+      if (timeRemaining < ONE_HOUR_MS || timeRemaining > ONE_HOUR_MS + CRON_WINDOW_MS) continue;
 
       // Dedup: skip if we already sent a 1h reminder for this pick
       const { data: existing } = await admin

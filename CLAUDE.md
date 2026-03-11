@@ -21,7 +21,7 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `src/config/sports.js` - Sports configuration: `AVAILABLE_SPORTS`, `TEAM_POOLS`, `EP_DRIVEN_POOL_SPORTS`, color helpers, `isTournamentYear`
 - `src/utils/draft.js` - Draft helpers: `generateDraftBoard`, `formatPickNumber`, `getPickerIndex`, `normalizeDraftPicker`, `getCurrentPickerFromState`, `compareByEP`, `wouldBreakSportCoverage`, `picksUntilTurn`
 - `src/utils/standings.js` - `generateStandings(league, picks, currentUserEmail, results, previousRankMap)` helper
-- `src/utils/points.js` - Point-calculation utilities: `calculatePickPoints`, `computeStandingsFromPicks`, `filterResultsForLeague`
+- `src/utils/points.js` - Point-calculation utilities: `calculatePickPoints`, `computeStandingsFromPicks`, `filterResultsForLeague`, `getPartialMultiEventPoints`
 - `src/utils/userDisplay.js` - User display helpers: `getUserDisplayName(user)` (first/last name from metadata, falls back to email prefix); `getUserInitials(user)` for avatar initials
 - `src/utils/format.js` - `formatHourLabel(hour)` converts 24-hour integer to 12-hour AM/PM string; `formatTimeRemaining(ms)` converts milliseconds to a human-readable countdown string (e.g. `"3h 12m"`, `"45s"`)
 - `src/hooks/useAutoPickLogic.js` - Extracted auto-pick hook. Manages both auto-pick effects (timer expiry + immediate queue pick). Returns `{ cancelAutoPickCountdown, autoPickCountdown }`. Internally tracks `lastAutoPickKeyRef`, `autoPickCountdownRef`, `prevCurrentPickRef` to prevent duplicate fires and mount-time false triggers.
@@ -275,8 +275,10 @@ EP totals show an asterisk `*` with tooltip "Some picks lack odds data — EP to
 
 ### `src/utils/points.js`
 
-- **`calculatePickPoints(pick, resultsMap)`** — Returns points for a single pick (80/50/30/20), `null` if the sport is not yet complete, or `0` if complete but pick didn't score.
+- **`calculatePickPoints(pick, resultsMap)`** — Returns points for a single pick (80/50/30/20), `null` if the sport is not yet complete, or `0` if complete but pick didn't score. For Golf/Tennis, uses `results.rankings[]` (ranked by accumulated event points) to determine final Omnifantasy placement.
 - **`computeStandingsFromPicks(membersList, picks, resultsMap, currentUserEmail)`** — Aggregates points across all picks and returns sorted standings rows.
+- **`getPartialMultiEventPoints(pick, resultsMap)`** — For in-progress Golf/Tennis, returns `{ accumulated, eventsComplete, eventsTotal }` based on per-event scores so far (8/5/3/2/1 per event). Returns `null` for non-Golf/Tennis sports, when sport is already complete, or when no events have finished yet. Used in LeagueView My Roster and Big Board to show mid-season progress.
+- **`filterResultsForLeague(results, draftDate)`** — Filters Golf/Tennis events to those starting on/after `draftDate`, then recomputes `rankings[]` from the filtered events. Ensures leagues don't get credit for events before their draft.
 
 ### `src/resultsApi.js`
 
@@ -288,7 +290,7 @@ EP totals show an asterisk `*` with tooltip "Some picks lack odds data — EP to
 ### `src/useResults.js`
 
 - **`useResults(sportCodes)`** — React hook. Returns `{ results, loading, error, retryResults }` where `results` is `{ [sportCode]: resultObject }`. `retryResults()` clears error before re-fetching.
-- Results shape: `{ champion, runner_up, semifinals[], quarterfinalists[], is_complete, season }` for single-event sports; `{ events: [...], is_complete, season }` for Golf/Tennis; `{ standings: [...], is_complete, season }` for F1.
+- Results shape: `{ champion, runner_up, semifinals[], quarterfinalists[], is_complete, season }` for single-event sports; `{ events: [...], rankings: string[], is_complete, season }` for Golf/Tennis (rankings = players sorted by accumulated event points, used for final Omnifantasy 80/50/30/20 award); `{ standings: [...], is_complete, season }` for F1.
 - Called in `omnifantasy-app.jsx` with `selectedLeague?.sports`; `sportResults` and `resultsLoading` are passed as props to `LeagueView`.
 
 ### `src/oddsApi.js`
@@ -337,6 +339,7 @@ Notes:
 
 ### Draft Settings
 - **Draft Order**: Random or Manual
+- **Draft Rounds**: Dropdown shows recommended count (num sports + 5 flex picks). Recommended option marked with ★. Quick-set link appears when current value differs from recommended; green confirmation text when already at recommended.
 - **Pick Timer**: none, 4 hours, 8 hours, 12 hours, 24 hours — stored as `draft_timer` on `leagues`
 - **Timer Pause Window**: `timer_pause_start_hour` / `timer_pause_end_hour` on `leagues` (default 0–8, i.e. midnight–8am); configurable per league
 - **Third Round Reversal**: `third_round_reversal` on `draft_state` — snake reverses at rounds 2+3 then continues alternating from round 4
@@ -346,6 +349,7 @@ Notes:
 ### Draft Confirmation Modal
 - `showStartDraftConfirmation` state controls visibility
 - Rendered in `omnifantasy-app.jsx`, surfaced during the league view flow
+- Shows full settings review: member count, round count, sports list (with color badges), format (snake/reversal), draft order type, sport requirement flag, pick timer + pause window, and full manual draft order if set. Scrollable content.
 
 ### League Invite & Member Acceptance Flow
 
@@ -548,9 +552,16 @@ const pts = calculatePickPoints(pick, sportResults);
 { champion: 'Chiefs', runner_up: 'Eagles', semifinals: ['49ers', 'Ravens'],
   quarterfinalists: ['Lions', 'Bills', 'Texans', 'Packers'], is_complete: true, season: 2025 }
 
-// Multi-event (Golf/Tennis) — complete only when all 4 events done:
+// Multi-event (Golf/Tennis) — complete only when all 4 events done.
+// rankings[] = players sorted by accumulated golf/tennis points (8/5/3/2/1 per event).
+// Final Omnifantasy points (80/50/30/20) awarded based on rankings[] position once is_complete.
+// Use getPartialMultiEventPoints(pick, sportResults) for mid-season accumulated display.
 { events: [{ name: 'Masters', champion: 'Scheffler', runner_up: 'McIlroy',
-             semifinals: [...], quarterfinalists: [...], is_complete: true }],
+             semifinals: [...], quarterfinalists: [...],
+             ninth_to_sixteenth: [...],   // Golf only — T9-T16 (1 pt)
+             round_of_sixteen: [...],     // Tennis only — R16 losers (1 pt)
+             is_complete: true }],
+  rankings: ['Scheffler', 'McIlroy', ...],
   is_complete: false, season: 2026 }
 
 // F1 — positions 0-7 map to 80/50/30/30/20/20/20/20:
@@ -617,3 +628,9 @@ These were previously deferred and are now shipped:
 - **LeagueView tab reorder** — Tabs now: My Roster → Standings → Big Board → Draft Results; default tab is `'my-roster'`
 - **Draft Results tab** — Visible as soon as first pick is made (was gated on draft completion); card layout on mobile, table on desktop
 - **Mobile Draft Results** — Card layout on mobile, full table on desktop
+- **Golf/Tennis scoring overhaul** — Per-event 80/50/30/20 replaced with accumulation system: 8/5/3/2/1 per event → ranked → single Omnifantasy 80/50/30/20 award. `resultsApi.js` captures `ninth_to_sixteenth` (Golf T9-T16) and `round_of_sixteen` (Tennis R16 losers). `rankings[]` computed and stored in results. `RESULTS_CACHE_VERSION = 2` auto-invalidates old cache. `points.js` uses `rankings[]` if present; falls back to old per-event sum for legacy entries.
+- **Partial mid-season standings** — `getPartialMultiEventPoints(pick, resultsMap)` returns `{ accumulated, eventsComplete, eventsTotal }` for in-progress Golf/Tennis. LeagueView My Roster and Big Board show `~N` accumulated points mid-season with hover tooltip showing events progress.
+- **Draft Rounds UX** — Settings panel shows recommended round count (sports + 5 flex), marks it with ★ in dropdown, quick-set link to jump to it, green confirmation when already at recommended.
+- **Start Draft confirmation modal enhanced** — Shows full settings review: member count, round count, sports (with color badges), format, draft order type, sport coverage flag, pick timer + pause window, full manual draft order if set. Scrollable.
+- **Member name sync on add** — `addLeagueMember` and `createLeague` look up any existing `league_members` row for that email to populate `name` immediately, rather than waiting for the user's next login.
+- **Roll Back Draft in mobile hamburger** — Commissioner can access Roll Back Draft on mobile via hamburger menu in DraftView (was hidden below `sm` breakpoint).

@@ -1105,7 +1105,7 @@ const DraftView = (props) => {
                   )}
                 </div>
                 <p className="text-slate-300 text-sm mb-6">
-                  Are you sure you want to make this pick? This action cannot be undone (unless the commissioner rolls back the draft).
+                  Are you sure you want to make this pick?
                 </p>
                 <div className="flex gap-3">
                   <button

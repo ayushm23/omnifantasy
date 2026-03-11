@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Plus, X, ArrowLeft, Trash2, Settings, UserPlus, UserMinus, Users } from 'lucide-react';
+import { Plus, X, ArrowLeft, ArrowRight, Trash2, Settings, UserPlus, UserMinus, Users } from 'lucide-react';
 import { addLeagueMember, removeLeagueMember, sendLeagueInvite } from '../supabaseClient';
 import { getCurrentPickerFromState, picksUntilTurn } from '../utils/draft';
 import { calculatePickPoints, getPartialMultiEventPoints } from '../utils/points';
@@ -270,8 +270,8 @@ const LeagueView = (props) => {
                 onClick={() => setCurrentView('draft')}
                 className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-4 py-2.5 md:px-6 md:py-3 rounded-lg font-semibold transition-all shadow-lg shadow-blue-500/20"
               >
-                <Plus size={18} />
-                View Draft
+                <ArrowRight size={18} />
+                Go to Draft
               </button>
             )}
 
