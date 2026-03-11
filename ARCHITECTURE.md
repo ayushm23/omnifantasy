@@ -1,200 +1,204 @@
 # OmniFantasy — System Architecture
 
-Rendered best in GitHub or any Mermaid-compatible viewer (e.g. VS Code with the Markdown Preview Mermaid Support extension).
+Four focused diagrams, each covering a specific concern. Rendered natively on GitHub.
+
+---
+
+## 1 · Infrastructure Overview
+
+Who talks to whom at the service level.
 
 ```mermaid
-graph TB
-    %% ── External triggers ────────────────────────────────────────────────────
-    Dev([Developer\npushes code]) -->|git push| GitHub
-
-    subgraph Hosting ["☁️ Hosting"]
-        GitHub[GitHub\nSource Control] -->|auto-deploy| Vercel[Vercel CDN\nomnifantasy.vercel.app]
-    end
-
-    Vercel -->|serves React bundle| Browser
-
-    %% ── Frontend ─────────────────────────────────────────────────────────────
-    subgraph Frontend ["⚛️ Frontend — React 18 + Vite (runs in browser)"]
-        Browser([User Browser])
-
-        subgraph Orchestrator ["omnifantasy-app.jsx — Main Orchestrator"]
-            AppState[Global State\ncurrentView · selectedLeagueId\ndraftOrderSettings · timeRemaining]
-        end
-
-        subgraph UIViews ["Views"]
-            HomeV[Home View\nleague cards · invite actions\nYour Turn indicators]
-            LeagueV[LeagueView.jsx\nMy Roster · Standings\nBig Board · Draft Results]
-            DraftV[DraftView.jsx\nlive draft grid · EP display\nqueue panel · timer]
-        end
-
-        subgraph HooksLayer ["Custom Hooks"]
-            useAuth[useAuth\nsupabase auth state]
-            useLeagues[useLeagues\nleague CRUD]
-            useDraft[useDraft\npicks · draft_state]
-            useEP[useExpectedPoints\nEP per sport]
-            useResults[useResults\nfinal sport results]
-            useQueue[useDraftQueue\npersonal queue + settings]
-            useChat[useChatMessages\nleague chat]
-            useAutoP[useAutoPickLogic\ntimer expiry + queue autopick]
-        end
-
-        subgraph UtilsLayer ["Utilities & Config"]
-            draftUtil[draft.js\npicker index · snake logic]
-            pointsUtil[points.js\ncalculatePickPoints\ngetPartialMultiEventPoints]
-            standUtil[standings.js\ngenerateStandings]
-            aliasUtil[aliases.js\nteam name normalization]
-            sportsConfig[sports.js\nTEAM_POOLS · AVAILABLE_SPORTS\nEP_DRIVEN_POOL_SPORTS]
-        end
-
-        subgraph DataFetch ["Data Fetchers (called by hooks)"]
-            supabaseClient[supabaseClient.js\nall DB read/write ops]
-            oddsApi[oddsApi.js\nThe Odds API wrapper\nEP calculation]
-            oddsScraper[oddsScraper.js\nF1 · ATP · WTA\nnon-Odds-API sports]
-            resultsApi[resultsApi.js\nESPN + Jolpica results\ncache management]
-        end
-
-        Browser --> Orchestrator
-        Orchestrator --> UIViews
-        Orchestrator --> HooksLayer
-        HooksLayer --> DataFetch
-        UIViews --> UtilsLayer
-        HooksLayer --> UtilsLayer
-    end
-
-    %% ── Supabase ─────────────────────────────────────────────────────────────
-    subgraph SupabaseCloud ["🗄️ Supabase (Backend-as-a-Service)"]
-
-        SupaAuth[Supabase Auth\nemail+password\nuser_metadata storage]
-
-        subgraph DB ["PostgreSQL Database"]
-            leagues[(leagues\ndraft settings · timer · emoji)]
-            members[(league_members\nstatus · name · position)]
-            picks[(draft_picks\npick_number · sport · team)]
-            draftState[(draft_state\ncurrent_pick · draft_order\npick_started_at)]
-            oddsCache[(odds_cache\nEP data · updated_at\ncache version)]
-            sportResults[(sport_results\nchampion · runner_up\nrankings · is_complete)]
-            queueTable[(draft_queue\nuser pick wishlist)]
-            memberSettings[(draft_member_settings\nauto_pick_from_queue)]
-            epHistory[(ep_history\nEP snapshots over time\nfor trend charts)]
-            chatTable[(league_chat\nmessages · timestamps)]
-            remindersTable[(draft_reminders\n1h reminder dedup)]
-        end
-
-        Realtime[Supabase Realtime\nWebSocket pub/sub]
-
-        subgraph EdgeFunctions ["Edge Functions (Deno)"]
-            otcFn[send-otc-email\nnotify next picker\nafter every pick]
-            reminderFn[check-timer-reminders\n1h warning emails\ncron job]
-            inviteFn[send-league-invite\nnew member emails]
-            sharedHelpers[_shared/draft-helpers.ts\ngetPickerIndex · computeTimeRemaining\ncomputeDeadline · sendEmail]
-        end
-
-        pgCron[pg_cron\nevery 15 minutes]
-    end
-
-    %% ── External APIs ────────────────────────────────────────────────────────
-    subgraph ExternalAPIs ["🌐 External APIs"]
-        OddsAPIExt[The Odds API\nchampionship futures odds\n~165 credits/month]
-        ESPNApi[ESPN API\ntournament brackets\nteam results]
-        JolpicaApi[Jolpica API\nF1 season standings\nfree · no key needed]
-    end
-
-    %% ── Email ────────────────────────────────────────────────────────────────
-    subgraph EmailInfra ["📧 Email"]
-        SMTP[Gmail SMTP\nsmtp.gmail.com:587]
-    end
-
-    %% ══ Data flow edges ═══════════════════════════════════════════════════════
-
-    %% Auth
-    useAuth <-->|sign in · sign up · sign out| SupaAuth
-    SupaAuth -->|user + user_metadata| useAuth
-
-    %% DB reads/writes via supabaseClient
-    supabaseClient <-->|leagues CRUD| leagues
-    supabaseClient <-->|members CRUD| members
-    supabaseClient <-->|picks INSERT/SELECT| picks
-    supabaseClient <-->|draft_state READ/UPDATE| draftState
-    supabaseClient <-->|queue CRUD| queueTable
-    supabaseClient <-->|settings CRUD| memberSettings
-    supabaseClient <-->|chat INSERT/SELECT| chatTable
-
-    %% Realtime subscriptions
-    picks -->|INSERT events| Realtime
-    draftState -->|UPDATE events| Realtime
-    chatTable -->|INSERT events| Realtime
-    Realtime -->|new pick · state change| useDraft
-    Realtime -->|new messages| useChat
-
-    %% EP data flow
-    useEP -->|check cache freshness| oddsCache
-    oddsCache -->|stale or miss| oddsApi
-    oddsApi -->|fetch championship odds| OddsAPIExt
-    oddsApi -->|write updated cache| oddsCache
-    oddsApi -->|snapshot EP values| epHistory
-    oddsScraper -->|F1 live standings| JolpicaApi
-    oddsScraper -->|write cache| oddsCache
-    useEP --> oddsApi
-    useEP --> oddsScraper
-
-    %% Results data flow
-    useResults -->|check cache freshness| sportResults
-    sportResults -->|stale or miss| resultsApi
-    resultsApi -->|brackets · standings| ESPNApi
-    resultsApi -->|F1 final standings| JolpicaApi
-    resultsApi -->|write updated cache| sportResults
-
-    %% Email flows
-    Orchestrator -->|after each pick\n1.5s delay| otcFn
-    Orchestrator -->|on league create| inviteFn
-    pgCron -->|every 15 min| reminderFn
-    otcFn --> sharedHelpers
-    reminderFn --> sharedHelpers
-    inviteFn --> sharedHelpers
-    otcFn -->|reads current picker| draftState
-    otcFn -->|reads timer settings| leagues
-    reminderFn -->|reads active leagues| leagues
-    reminderFn -->|reads pick state| draftState
-    reminderFn -->|dedup check + write| remindersTable
-    sharedHelpers -->|SMTP send| SMTP
-    SMTP -->|delivers to| Recipients([League Members\ninboxes])
+graph LR
+    GitHub[GitHub\nSource Control] -->|auto-deploy on push| Vercel[Vercel CDN\nserves React app]
+    Vercel -->|loads in| Browser[User Browser]
+    Browser <-->|JS SDK| Supabase[Supabase\nAuth · DB · Realtime\nEdge Functions]
+    Browser -->|fetch EP odds| OddsAPI[The Odds API]
+    Browser -->|fetch results| ESPN[ESPN API]
+    Browser -->|fetch F1 data| Jolpica[Jolpica API]
+    Supabase -->|pg_cron every 15 min| EdgeFn[Edge Functions]
+    EdgeFn -->|SMTP| Gmail[Gmail SMTP]
+    Gmail -->|delivers| Inbox[User Inboxes]
 ```
 
 ---
 
-## Key Data Flows (plain English)
+## 2 · Frontend Layer
 
-### 1 — Page Load
-User opens app → Vercel serves the React bundle → `useAuth` checks Supabase session → if logged in, `useLeagues` fetches leagues → URL `?draft=<id>` param handled → navigate to correct view.
+How the React app is structured internally.
 
-### 2 — Expected Points (EP)
-`useExpectedPoints` → `oddsApi.js` checks `odds_cache` table → if fresh (<2 days, version matches): return cached data → if stale: fetch from **The Odds API** (standard sports) or **Jolpica** (F1) via `oddsScraper.js` → normalize team names via `aliases.js` → write back to `odds_cache` → snapshot current EP values to `ep_history` for trend charts.
+```mermaid
+graph TB
+    App[omnifantasy-app.jsx\nGlobal state · routing · modals]
 
-### 3 — Making a Pick
-User confirms pick → `supabaseClient.makePick()` → INSERT into `draft_picks` + UPDATE `draft_state` → Supabase Realtime broadcasts the changes → **all connected clients** receive the update in real-time → 1.5s later, client calls `send-otc-email` Edge Function → reads new `draft_state` to find next picker → sends email via Gmail SMTP.
+    App --> HomeV[Home View\nleague cards · invites\nYour Turn indicators]
+    App --> LeagueV[LeagueView\nMy Roster · Standings\nBig Board · Draft Results]
+    App --> DraftV[DraftView\nlive grid · EP display\nqueue · timer]
 
-### 4 — Auto-Pick
-`useAutoPickLogic` monitors `timeRemaining` (computed from `draft_state.pick_started_at`) → when timer expires OR picker's queue item is available → calls `makePick()` automatically → same email flow as manual pick.
+    App --> useAuth[useAuth\nsession state]
+    App --> useLeagues[useLeagues\nleague CRUD]
+    App --> useDraft[useDraft\npicks + draft_state]
+    App --> useEP[useExpectedPoints\nEP per sport]
+    App --> useResults[useResults\nfinal sport results]
+    App --> useQueue[useDraftQueue\npick wishlist]
+    App --> useAutoP[useAutoPickLogic\ntimer expiry · queue autopick]
+    App --> useChat[useChatMessages\nleague chat]
 
-### 5 — Results & Standings
-`useResults` → `resultsApi.js` checks `sport_results` cache → if stale: fetch from **ESPN** (brackets/results) or **Jolpica** (F1) → normalize names → write cache → `calculatePickPoints()` maps results to Omnifantasy 80/50/30/20 points → `generateStandings()` sorts members by total points.
+    useLeagues --> supabaseClient[supabaseClient.js\nall DB read/write]
+    useDraft --> supabaseClient
+    useQueue --> supabaseClient
+    useChat --> supabaseClient
 
-### 6 — 1-Hour Reminder
-`pg_cron` fires `check-timer-reminders` every 15 min → for each active timed league: `computeTimeRemaining()` (pause-aware) → if 60–76 min remaining: check `draft_reminders` for dedup → send email via SMTP → record in `draft_reminders`.
+    useEP --> oddsApi[oddsApi.js]
+    useEP --> oddsScraper[oddsScraper.js\nF1 · ATP · WTA]
+    useResults --> resultsApi[resultsApi.js]
+```
 
 ---
 
-## Component Dependency Summary
+## 3 · Database Schema
 
-| Layer | Tech | Talks To |
-|---|---|---|
-| CDN / Hosting | Vercel | GitHub (deploy trigger) |
-| Frontend | React 18 + Vite + TailwindCSS | Supabase JS SDK, external APIs |
-| Auth | Supabase Auth | Frontend hooks |
-| Database | PostgreSQL (Supabase) | Frontend via supabaseClient.js, Edge Functions |
-| Realtime | Supabase Realtime (WebSocket) | Frontend hooks (useDraft, useChat) |
-| Edge Functions | Deno (Supabase) | PostgreSQL, Gmail SMTP |
-| Scheduled Jobs | pg_cron (Supabase) | Edge Functions |
-| Odds Data | The Odds API | oddsApi.js → odds_cache |
-| Results Data | ESPN API + Jolpica API | resultsApi.js → sport_results |
-| Email Delivery | Gmail SMTP | Edge Functions |
+Tables and their relationships.
+
+```mermaid
+erDiagram
+    leagues {
+        uuid id PK
+        text name
+        text commissioner_email
+        text[] sports
+        int draft_rounds
+        text draft_timer
+        int timer_pause_start_hour
+        int timer_pause_end_hour
+        text league_emoji
+        bool draft_started
+    }
+    league_members {
+        uuid id PK
+        uuid league_id FK
+        text email
+        text name
+        int draft_position
+        text status
+    }
+    draft_picks {
+        uuid id PK
+        uuid league_id FK
+        int pick_number
+        int round
+        text picker_email
+        text sport
+        text team
+    }
+    draft_state {
+        uuid league_id PK
+        int current_pick
+        int current_round
+        jsonb draft_order
+        bool is_snake
+        bool third_round_reversal
+        bool draft_every_sport_required
+        timestamptz pick_started_at
+    }
+    odds_cache {
+        text sport_code PK
+        jsonb data
+        timestamptz updated_at
+    }
+    sport_results {
+        text sport_code PK
+        int season PK
+        jsonb results
+        timestamptz updated_at
+    }
+    draft_queue {
+        uuid id PK
+        uuid league_id FK
+        text user_email
+        text sport
+        text team
+        int position
+    }
+    ep_history {
+        bigint id PK
+        text sport_code
+        jsonb snapshot_data
+        timestamptz captured_at
+    }
+    league_chat {
+        uuid id PK
+        uuid league_id FK
+        text user_email
+        text message
+        timestamptz created_at
+    }
+    draft_reminders {
+        uuid league_id FK
+        int pick_number
+        text reminder_type
+    }
+
+    leagues ||--o{ league_members : "has members"
+    leagues ||--o{ draft_picks : "has picks"
+    leagues ||--|| draft_state : "has state"
+    leagues ||--o{ draft_queue : "has queues"
+    leagues ||--o{ league_chat : "has chat"
+    leagues ||--o{ draft_reminders : "has reminders"
+```
+
+---
+
+## 4 · Key Data Flows
+
+The four main runtime flows end-to-end.
+
+```mermaid
+sequenceDiagram
+    participant U as User Browser
+    participant DB as Supabase DB
+    participant RT as Supabase Realtime
+    participant EF as Edge Function
+    participant SMTP as Gmail SMTP
+    participant Ext as External APIs
+
+    Note over U,Ext: Flow A — Expected Points (EP)
+    U->>DB: check odds_cache (sport_code)
+    alt cache fresh < 2 days
+        DB-->>U: return cached EP data
+    else stale or missing
+        U->>Ext: fetch from The Odds API / Jolpica
+        Ext-->>U: raw odds
+        U->>DB: write odds_cache + ep_history snapshot
+        DB-->>U: cached EP data
+    end
+
+    Note over U,Ext: Flow B — Making a Pick
+    U->>DB: INSERT draft_picks + UPDATE draft_state
+    DB->>RT: broadcast state change
+    RT-->>U: all connected clients refresh
+    U->>EF: sendOtcEmail (1.5s delay)
+    EF->>DB: read draft_state + leagues
+    EF->>SMTP: send "You're on the clock" email
+    SMTP-->>U: email delivered to next picker
+
+    Note over U,Ext: Flow C — Sport Results & Standings
+    U->>DB: check sport_results cache
+    alt cache fresh
+        DB-->>U: return cached results
+    else stale
+        U->>Ext: fetch ESPN brackets / Jolpica F1
+        Ext-->>U: raw results
+        U->>DB: write sport_results cache
+        DB-->>U: results → calculatePickPoints() → standings
+    end
+
+    Note over U,Ext: Flow D — 1-Hour Reminder (server-side)
+    EF->>DB: pg_cron fires every 15 min
+    DB->>EF: active leagues with timers
+    EF->>EF: computeTimeRemaining() pause-aware
+    alt 60–76 min remaining + not already sent
+        EF->>DB: INSERT draft_reminders (dedup)
+        EF->>SMTP: send "1 hour left" email
+    end
+```
