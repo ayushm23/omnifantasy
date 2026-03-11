@@ -13,6 +13,7 @@ import {
   getPickerIndex,
   normalizeDraftPicker,
   timerStringToMs,
+  computeDeadline,
   sendEmail,
   escapeHtml,
 } from '../_shared/draft-helpers.ts';
@@ -71,19 +72,20 @@ Deno.serve(async (req) => {
     if (!wantsEmail) return skip('user OTC emails disabled');
 
     // Build timer deadline text if the league uses a pick timer
-    const timerMs = timerStringToMs(league.draft_timer);
-    let deadlineText = '';
-    let deadlineHtml = '';
+    const timerMs      = timerStringToMs(league.draft_timer);
+    const pauseStart   = league.timer_pause_start_hour ?? 0;
+    const pauseEnd     = league.timer_pause_end_hour   ?? 8;
+    let deadlineText   = '';
+    let deadlineHtml   = '';
     if (timerMs && state.pick_started_at) {
-      const deadlineMs  = new Date(state.pick_started_at).getTime() + timerMs;
-      const deadlineDate = new Date(deadlineMs);
-      const formatted   = deadlineDate.toLocaleString('en-US', {
+      const deadlineDate = computeDeadline(state.pick_started_at, timerMs, pauseStart, pauseEnd);
+      const formatted    = deadlineDate.toLocaleString('en-US', {
         weekday: 'short', month: 'short', day: 'numeric',
         hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
         timeZone: 'America/New_York',
       });
-      deadlineText = `\n\nPick timer expires around ${formatted} (not accounting for overnight pause).`;
-      deadlineHtml = `<p style="color:#f59e0b;">&#9201; Pick timer expires around <strong>${escapeHtml(formatted)}</strong> <span style="color:#6b7280;font-size:13px;">(not accounting for overnight pause)</span>.</p>`;
+      deadlineText = `\n\nPick timer expires ${formatted}.`;
+      deadlineHtml = `<p style="color:#f59e0b;">&#9201; Pick timer expires <strong>${escapeHtml(formatted)}</strong>.</p>`;
     }
 
     const name    = picker.name || picker.email.split('@')[0];

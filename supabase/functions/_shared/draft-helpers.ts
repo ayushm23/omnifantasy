@@ -91,6 +91,54 @@ export function computeTimeRemaining(
   return timerMs - effectiveElapsed;
 }
 
+// Given a pick start time and timer duration, compute the actual wall-clock
+// deadline by advancing forward while skipping any configured pause windows.
+// pauseStartHour / pauseEndHour are integers 0–23 (UTC-based).
+export function computeDeadline(
+  pickStartedAt: string,
+  timerMs: number,
+  pauseStartHour: number,
+  pauseEndHour: number,
+): Date {
+  const start = new Date(pickStartedAt).getTime();
+
+  // No effective pause window — simple addition
+  if (pauseStartHour >= pauseEndHour) {
+    return new Date(start + timerMs);
+  }
+
+  const dayMs          = 24 * 3600 * 1000;
+  const pauseDurMs     = (pauseEndHour - pauseStartHour) * 3600 * 1000;
+  let cursor           = start;
+  let remainingActive  = timerMs;
+
+  while (remainingActive > 0) {
+    const dayStart  = cursor - (cursor % dayMs); // UTC midnight of cursor's day
+    const winStart  = dayStart + pauseStartHour * 3600 * 1000;
+    const winEnd    = dayStart + pauseEndHour   * 3600 * 1000;
+
+    // If cursor landed inside a pause window, jump to end of it
+    if (cursor >= winStart && cursor < winEnd) {
+      cursor = winEnd;
+      continue;
+    }
+
+    // Next pause start (today's if we haven't reached it yet, otherwise tomorrow's)
+    const nextPause = cursor < winStart ? winStart : winStart + dayMs;
+    const activeUntilPause = nextPause - cursor;
+
+    if (remainingActive <= activeUntilPause) {
+      cursor += remainingActive;
+      remainingActive = 0;
+    } else {
+      remainingActive -= activeUntilPause;
+      cursor = nextPause + pauseDurMs; // skip the pause window
+    }
+  }
+
+  return new Date(cursor);
+}
+
 // ─── Email ────────────────────────────────────────────────────────────────────
 
 export function escapeHtml(str: string): string {
