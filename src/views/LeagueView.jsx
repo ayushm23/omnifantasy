@@ -1574,43 +1574,87 @@ const LeagueView = (props) => {
       {/* Start Draft Confirmation Modal */}
       {showStartDraftConfirmation && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full">
-            <div className="border-b border-slate-700 p-6">
+          <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full max-h-[90vh] flex flex-col">
+            <div className="border-b border-slate-700 p-5 shrink-0">
               <h3 className="text-xl font-bold text-white">Confirm Draft Start</h3>
-              <p className="text-sm text-slate-400 mt-1">Review your draft settings. Once started, these cannot be changed.</p>
+              <p className="text-sm text-slate-400 mt-1">Review settings below — most cannot be changed once the draft begins.</p>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-400">Draft Order</span>
-                <span className="text-sm font-semibold text-white">
-                  {draftOrderSettings.randomize ? 'Random' : 'Manual'}
-                </span>
+            <div className="p-5 space-y-5 overflow-y-auto">
+              {/* Members & rounds */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-700/40 rounded-lg px-4 py-3">
+                  <div className="text-xs text-slate-400 mb-1">Members</div>
+                  <div className="text-lg font-bold text-white">{selectedLeague?.members}</div>
+                </div>
+                <div className="bg-slate-700/40 rounded-lg px-4 py-3">
+                  <div className="text-xs text-slate-400 mb-1">Rounds</div>
+                  <div className="text-lg font-bold text-white">{draftOrderSettings.draftRounds || selectedLeague?.draftRounds}</div>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-400">Draft Format</span>
-                <span className="text-sm font-semibold text-white">
-                  {draftOrderSettings.thirdRoundReversal ? 'Snake (3RR)' : 'Snake'}
-                </span>
+              {/* Sports */}
+              <div>
+                <div className="text-xs text-slate-400 mb-2">Sports ({selectedLeague?.sports?.length})</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {(selectedLeague?.sports || []).map(sport => (
+                    <SportBadge key={sport} sport={sport} size="pill" />
+                  ))}
+                </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-400">Sport Requirement</span>
-                <span className="text-sm font-semibold text-white">
-                  {draftOrderSettings.draftEverySportRequired !== false ? 'Required' : 'Optional'}
-                </span>
+              {/* Draft format row */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                <div className="flex items-center justify-between col-span-2 border-t border-slate-700/50 pt-3">
+                  <span className="text-slate-400">Format</span>
+                  <span className="font-semibold text-white">{draftOrderSettings.thirdRoundReversal ? 'Snake (3rd-round reversal)' : 'Snake'}</span>
+                </div>
+                <div className="flex items-center justify-between col-span-2">
+                  <span className="text-slate-400">Draft order</span>
+                  <span className="font-semibold text-white">{draftOrderSettings.randomize ? 'Random on start' : 'Manual (set below)'}</span>
+                </div>
+                <div className="flex items-center justify-between col-span-2">
+                  <span className="text-slate-400">Sport pick requirement</span>
+                  <span className="font-semibold text-white">{draftOrderSettings.draftEverySportRequired !== false ? 'Required' : 'Optional'}</span>
+                </div>
+                <div className="flex items-center justify-between col-span-2">
+                  <span className="text-slate-400">Pick timer</span>
+                  <span className="font-semibold text-white">
+                    {selectedLeague?.draftTimer && selectedLeague.draftTimer !== 'none'
+                      ? <>
+                          {selectedLeague.draftTimer}
+                          {selectedLeague?.timerPauseEnabled && ` · paused ${formatHourLabel(selectedLeague.timerPauseStartHour ?? 0)}–${formatHourLabel(selectedLeague.timerPauseEndHour ?? 8)}`}
+                        </>
+                      : 'None'}
+                  </span>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-400">Pick Timer</span>
-                <span className="text-sm font-semibold text-white">
-                  {selectedLeague?.draftTimer && selectedLeague.draftTimer !== 'none' ? selectedLeague.draftTimer : 'None'}
-                </span>
-              </div>
+              {/* Draft order list (manual only) */}
+              {!draftOrderSettings.randomize && (() => {
+                const order = draftOrderSettings.manualOrder.length > 0
+                  ? draftOrderSettings.manualOrder
+                  : selectedLeague?.membersList?.map(m => m.email) || [];
+                return (
+                  <div>
+                    <div className="text-xs text-slate-400 mb-2">Draft order</div>
+                    <div className="space-y-1">
+                      {order.map((email, i) => {
+                        const member = selectedLeague?.membersList?.find(m => m.email === email);
+                        return (
+                          <div key={email} className="flex items-center gap-2 text-sm">
+                            <span className="text-slate-500 w-5 text-right shrink-0">{i + 1}.</span>
+                            <span className="text-white">{member?.name || email.split('@')[0]}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
-            <div className="flex gap-3 p-6 border-t border-slate-700">
+            <div className="flex gap-3 p-5 border-t border-slate-700 shrink-0">
               <button
                 onClick={() => setShowStartDraftConfirmation(false)}
                 className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-all"
