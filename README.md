@@ -1,233 +1,218 @@
 # OmniFantasy
 
-OmniFantasy is a multi-sport, team-based fantasy draft app.  
-Users draft teams (not players) across multiple sports, then track results over a full season/year.
+OmniFantasy is a multi-sport, team-based fantasy draft app. Users draft teams (not players) across up to 13 sports and track results over a full calendar year.
 
-## What this project currently does
+## What this is
 
-- Email/password auth via Supabase Auth.
-- League creation with commissioner + invited members.
-- Multi-sport league setup with minimum sport count.
-- Draft room with live pick updates (Supabase realtime).
-- Draft settings before start:
-  - Random order or manual order.
-  - Pick timer (`none`, `4 hours`, `8 hours`, `12 hours`, `24 hours`).
-  - Third Round Reversal (`3RR`) on/off.
-  - "Require one pick from every sport" on/off.
-- Commissioner-only draft controls:
-  - Start draft.
-  - Undo last pick (rollback).
-- Expected points (`EP`) pulled from odds sources and shown during drafting.
-- Odds cache in database with 2-day refresh cadence.
-- Tournament-year sport filtering (Euro/World Cup hidden when out of cycle).
+- **Snake draft**: Commissioner sets up a league, invites members, and runs a snake draft across multiple sports.
+- **Teams, not players**: You draft franchises/countries/golfers/drivers — not individual athletes (except Golf, Tennis, and F1).
+- **Year-long season**: Points are scored when your teams reach the top 8 in their respective sports' playoffs or championships.
+- **Expected Points (EP)**: Pre-draft, each option shows a projected score derived from betting odds to help compare value.
 
-## Product workflow
+## Supported Sports
 
-### 1) Authentication
+| Code | Sport | Notes |
+|------|-------|-------|
+| NFL | NFL | |
+| NBA | NBA | |
+| MLB | MLB | |
+| NHL | NHL | |
+| NCAAF | NCAA Football | Empty off-season |
+| NCAAMB | NCAA Men's Basketball | |
+| UCL | UEFA Champions League | |
+| Euro | UEFA Euro | Every 4 years (2024, 2028…) |
+| WorldCup | FIFA World Cup | Every 4 years (2026, 2030…) |
+| Golf | Golf (4 majors) | Special scoring — see below |
+| MensTennis | ATP (4 Grand Slams) | Special scoring — see below |
+| WomensTennis | WTA (4 Grand Slams) | Special scoring — see below |
+| F1 | Formula 1 | Drivers, not constructors |
 
-- User signs up or logs in with email/password.
-- Session is managed by Supabase client auth state.
+## Scoring
 
-### 2) League creation
+All sports award **80 / 50 / 30 / 30 / 20 / 20 / 20 / 20** points for finishing champion through top-8.
 
-Commissioner configures:
+**Golf & Tennis** use an aggregate system across 4 events (majors/slams). Per-event "golf/tennis points" (8/5/3/2/1) are accumulated across all events; the final ranking of accumulated points determines who earns the 80/50/30/20 Omnifantasy awards. See [docs/EP_METHODOLOGY.md](docs/EP_METHODOLOGY.md) for full detail.
 
-- League name.
-- Sports (minimum 3).
-- Members by email (commissioner appears in league automatically).
-- Draft rounds.
-- Draft timer default.
-- OTC email flag (`send_otc_emails`) is stored on league data.
+**F1** uses the end-of-season Drivers' Championship standings directly.
 
-### 3) Pre-draft settings (commissioner)
+## Tech Stack
 
-From Draft Settings panel:
+- **Frontend**: React 18 + Vite, TailwindCSS, Lucide React
+- **Backend**: Supabase (PostgreSQL + Realtime + Edge Functions)
+- **Auth**: Supabase Auth (email/password)
+- **Hosting**: Vercel (auto-deploy on push to main)
+- **Email**: Gmail SMTP via Supabase Edge Functions + Nodemailer
+- **Odds**: The Odds API (most sports) + Jolpica API (F1) + hardcoded preseason odds (Tennis)
 
-- `Draft Order`
-  - `Randomize`: order shuffled at draft start.
-  - `Manual`: commissioner moves members up/down.
-- `Draft Timer`
-  - Saved to league settings.
-  - Draft room timer pauses daily between 12:00am and 8:00am ET for 4/8/12-hour modes.
-- `Draft Format`
-  - Standard snake, or snake with `3RR`.
-- `Sport Requirement`
-  - On: each drafter must take at least one team from every selected sport before unrestricted flex picks.
-  - Off: no required sport coverage.
+## Local Setup
 
-### 4) Start draft
-
-On confirmation, app persists draft state:
-
-- `current_pick = 1`
-- `current_round = 1`
-- `draft_order = [...]`
-- `is_snake = true`
-- `third_round_reversal = true/false`
-- `draft_every_sport_required = true/false`
-- `pick_started_at = now`
-
-### 5) Draft room behavior
-
-- Current picker is computed from central draft order logic.
-- If `3RR` is enabled:
-  - Round 1 normal.
-  - Rounds 2 and 3 reversed.
-  - Round 4 normal, then alternating by round.
-- If sport requirement is enabled:
-  - Missing required sports are detected per current picker.
-  - Non-eligible sport tabs are disabled.
-  - Picks from non-eligible sports are hard-blocked.
-- Pick confirmation modal appears before submit.
-- Commissioner can undo latest pick.
-
-### 6) League views after/while drafting
-
-- Standings and roster surfaces include drafted teams and EP where available.
-- Draft progress and "Your turn" indicators update from realtime draft state.
-
-## Expected points and odds pipeline
-
-`EP` is derived from championship probabilities and displayed in draft + league screens.
-
-### Data sources
-
-- The Odds API (`VITE_ODDS_API_KEY`) for supported outrights markets.
-- API-Football fallback (`VITE_API_FOOTBALL_KEY`) for UCL when outright winner market is unavailable.
-- Scraped/derived pipeline (`src/oddsScraper.js`) for:
-  - F1
-  - Men's Tennis
-  - Women's Tennis
-
-### Caching
-
-- Cached in Supabase table `odds_cache`.
-- Cache TTL is 2 days.
-- Cache is shared across users.
-- Cache versioning is used for invalidating stale formulas.
-
-### Tournament-year logic
-
-- `Euro`: selectable only every 4 years from 2024 cycle.
-- `WorldCup`: selectable only every 4 years from 2026 cycle.
-- UCL remains selectable regardless of region.
-
-## Sports and pools
-
-- Sports are defined in `src/config/sports.js` (`AVAILABLE_SPORTS`).
-- Static team/player pools are in `TEAM_POOLS`.
-- EP-driven pool sports can refresh from top EP entries year-over-year:
-  - `UCL`, `Euro`, `WorldCup`, `Golf`, `MensTennis`, `WomensTennis`, `F1`.
-
-## Tech stack
-
-- React 18 + Vite
-- Tailwind CSS
-- Supabase (Postgres, Auth, Realtime)
-- Lucide React icons
-
-## Environment configuration
-
-Set these in `.env`:
-
-```env
-VITE_SUPABASE_URL=your_supabase_url_here
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
-VITE_ODDS_API_KEY=your_odds_api_key_here
-VITE_API_FOOTBALL_KEY=your_api_football_rapidapi_key_here
-```
-
-Notes:
-
-- `VITE_ODDS_API_KEY` is required for most odds-backed EP.
-- `VITE_API_FOOTBALL_KEY` is optional but needed for UCL fallback.
-
-## Local setup
-
-1. Install dependencies:
+### 1. Clone and install
 
 ```bash
 npm install
 ```
 
-2. Configure `.env` with values above.
+### 2. Configure environment
 
-3. In Supabase SQL editor, run:
-  - `database-setup.sql`
-  - `database-migration-timer.sql`
-  - `database-migration-timer-pause-window.sql`
-  - `database-migration-picker-name.sql`
-  - `database-migration-odds-cache.sql`
-  - `database-migration-third-round-reversal.sql`
-  - `database-migration-draft-sport-requirement.sql`
+Create `.env` in the project root:
 
-4. Start app:
-
-```bash
-npm run dev
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_ODDS_API_KEY=your_odds_api_key
 ```
 
-5. Build check:
+### 3. Set up the database
 
-```bash
-npm run build
+In the Supabase SQL editor, run these files **in order**:
+
+```
+database/database-setup.sql
+database/database-migration-timer.sql
+database/database-migration-picker-name.sql
+database/database-migration-odds-cache.sql
+database/database-migration-results.sql
+database/database-migration-third-round-reversal.sql
+database/database-migration-draft-sport-requirement.sql
+database/database-migration-timer-pause-window.sql
+database/database-migration-draft-queue.sql
+database/database-migration-ep-history.sql
+database/database-migration-league-chat.sql
+database/database-migration-league-emoji.sql
+database/database-migration-member-status.sql
+database/database-migration-draft-reminders.sql
 ```
 
-## Database and migrations
+### 4. Deploy Edge Functions (optional but needed for emails)
 
-### Core entities
+```bash
+supabase functions deploy send-otc-email
+supabase functions deploy check-timer-reminders
+supabase functions deploy send-league-invite
+```
 
-- `leagues`
-- `league_members`
-- `draft_state`
-- `draft_picks`
-- `odds_cache`
+Set required secrets:
 
-### Migration summary
+```bash
+supabase secrets set SMTP_HOST=... SMTP_PORT=587 SMTP_USER=... SMTP_PASS=... SMTP_FROM=...
+supabase secrets set APP_URL=https://your-app-url.com
+```
 
-1. `database-migration-timer.sql`
-  - Adds `pick_started_at` to `draft_state`.
-2. `database-migration-timer-pause-window.sql`
-  - Adds `timer_pause_start_hour` and `timer_pause_end_hour` to `leagues`.
-3. `database-migration-picker-name.sql`
-  - Adds `picker_name` to `draft_picks`.
-4. `database-migration-odds-cache.sql`
-  - Adds `odds_cache` table + RLS policies.
-5. `database-migration-third-round-reversal.sql`
-  - Adds `third_round_reversal` to `draft_state`.
-6. `database-migration-draft-sport-requirement.sql`
-  - Adds `draft_every_sport_required` to `draft_state`.
+The `check-timer-reminders` function must also be scheduled via pg_cron (see `database/database-migration-draft-reminders.sql` comments).
 
-## Project structure
+### 5. Run locally
 
-```text
+```bash
+npm run dev       # dev server
+npm run build     # production build
+npm run preview   # preview prod build
+```
+
+## Key Features
+
+### League Management
+- Commissioners create leagues, pick sports, set draft rounds, and invite members by email
+- Members receive invite emails and must accept before the draft can start
+- League emoji — 12 curated options, editable after creation
+- Commissioner has exclusive control to start and roll back the draft
+
+### Draft Settings
+- **Draft order**: randomize or set manually
+- **Pick timer**: none, 4h, 8h, 12h, or 24h
+- **Timer pause window**: daily quiet hours (default midnight–8 AM UTC) during which the timer is frozen
+- **Snake format**: standard snake, or Third Round Reversal (rounds 2–3 reversed, then alternating)
+- **Sport requirement**: force each drafter to cover all league sports before flex picks
+
+### Draft Room
+- Live pick grid with Supabase Realtime (all browsers update instantly)
+- EP shown next to each team to guide picks
+- Personal draft queue — queue up picks in advance for auto-pick when it's your turn
+- Auto-pick from queue when the timer expires
+- "You're on the clock" emails sent after each pick (per-user preference)
+- 1-hour warning emails via scheduled cron job
+
+### Standings & Points
+- Points auto-calculated from ESPN/Jolpica results — no manual entry
+- Standings update live as sports conclude throughout the year
+- Rank trend arrows (📈/📉/➡️) track movement between sessions
+- Mid-season partial points for Golf/Tennis show current accumulated totals
+
+### Other
+- EP trend chart per team (Recharts) with 1W/1M/3M/All time frames
+- Recent news per team from ESPN API
+- League chat (real-time, floating button)
+- Full mobile responsive layout (hamburger nav, bottom-sheet queue, tap-to-expand standings)
+
+## Project Structure
+
+```
 Omnifantasy/
   src/
-    omnifantasy-app.jsx       # App orchestration + top-level state
+    omnifantasy-app.jsx         # App root: auth, routing, top-level state
     views/
-      LeagueView.jsx          # League detail page + draft settings modal
-      DraftView.jsx           # Draft room and pick flow
-    useSupabase.js            # Hooks for auth/leagues/draft realtime state
-    supabaseClient.js         # DB operations and subscriptions
-    config/sports.js          # Sport catalog, pools, sport-year filtering
-    oddsApi.js                # Odds API + UCL fallback + EP conversion
-    oddsScraper.js            # F1/tennis probability providers
-    useExpectedPoints.js      # EP fetch hook
-    utils/draft.js            # Draft order utilities (snake + 3RR)
-    utils/standings.js        # Standings generation
-  database-setup.sql
-  database-migration-*.sql
+      LeagueView.jsx            # League tabs: My Roster, Standings, Big Board, Draft Results
+      DraftView.jsx             # Live draft room
+    hooks/
+      useAutoPickLogic.js       # Timer expiry + queue auto-pick logic
+    components/
+      TimerDisplay.jsx          # Draft timer (compact + block variants)
+      TeamPopup.jsx             # EP chart + news modal per team
+      LeagueChat.jsx            # Floating chat widget
+      RulesModal.jsx            # How-to-play help modal
+      ConfirmModal.jsx          # Styled confirmation dialog
+      SportBadge.jsx            # Sport label with color
+    config/
+      sports.js                 # AVAILABLE_SPORTS, TEAM_POOLS, color helpers
+    utils/
+      draft.js                  # Snake draft logic, picker index, formatting
+      standings.js              # generateStandings()
+      points.js                 # calculatePickPoints(), getPartialMultiEventPoints()
+      aliases.js                # Team name normalization maps
+      format.js                 # formatHourLabel(), formatTimeRemaining()
+      userDisplay.js            # getUserDisplayName(), getUserInitials()
+    context/
+      AppContext.jsx            # Shared context for DraftView + LeagueView
+    oddsApi.js                  # The Odds API integration, EP calculation, cache
+    oddsScraper.js              # F1/Tennis odds (Jolpica + hardcoded)
+    resultsApi.js               # ESPN/Jolpica results fetcher, results cache
+    supabaseClient.js           # All DB read/write operations
+    useSupabase.js              # useAuth, useLeagues, useDraft hooks
+    useExpectedPoints.js        # EP hook
+    useResults.js               # Results hook
+    useDraftQueue.js            # Queue + draft settings hook
+    useChatMessages.js          # League chat hook
+    useEPHistory.js             # EP trend data hook
+    useTeamNews.js              # ESPN team news hook
+    __tests__/
+      draft.test.js             # Vitest: draft order logic
+      points.test.js            # Vitest: point calculation
+      aliases.test.js           # Vitest: team name normalization
+      format.test.js            # Vitest: formatting utilities
+  supabase/
+    functions/
+      send-otc-email/           # Edge Function: "you're on the clock" emails
+      check-timer-reminders/    # Edge Function: 1-hour warning cron job
+      send-league-invite/       # Edge Function: member invite emails
+      _shared/
+        draft-helpers.ts        # Shared: getPickerIndex, computeDeadline, sendEmail
+  database/
+    database-setup.sql          # Full schema + RLS policies
+    database-migration-*.sql    # Individual migrations (run in order)
+  docs/
+    ARCHITECTURE.md             # System diagrams (infrastructure, frontend, DB, data flows)
+    EP_METHODOLOGY.md           # EP calculation, scoring rules, caching, API budget
+  CLAUDE.md                     # Development guide for AI-assisted development
 ```
 
-## Runtime scripts
+## Docs
 
-- `npm run dev` - run local development server.
-- `npm run build` - production build.
-- `npm run preview` - preview production build locally.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — System architecture diagrams
+- [docs/EP_METHODOLOGY.md](docs/EP_METHODOLOGY.md) — How EP is calculated and how scoring works
 
-## Known behavior and limits
+## Running Tests
 
-- If odds are unavailable for a sport, EP displays as `TBD`.
-- Team pools and alias maps may need periodic updates as competitions change.
-- Realtime requires Supabase realtime enabled for relevant tables.
-- Draft setting changes apply before draft start; started drafts use persisted draft state.
+```bash
+npm test
+```
+
+Tests cover: draft order logic (snake + 3RR), point calculation (all sports including Golf/Tennis), team name alias normalization, and formatting utilities.
