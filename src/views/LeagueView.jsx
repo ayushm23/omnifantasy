@@ -1227,30 +1227,51 @@ const LeagueView = (props) => {
                 <>
                   {/* Draft Rounds */}
                   <div>
-                    <h3 className="text-base font-semibold text-white mb-2">
-                      Draft Rounds
-                    </h3>
-                    <p className="text-sm text-slate-400 mb-4">
-                      Must be at least number of sports. Recommended: sports + 5 flex picks.
-                    </p>
-                    <select
-                      value={draftOrderSettings.draftRounds || selectedLeague?.draftRounds || 8}
-                      onChange={(e) => setDraftOrderSettings({
-                        ...draftOrderSettings,
-                        draftRounds: parseInt(e.target.value, 10)
-                      })}
-                      className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 text-white"
-                    >
-                      {[...Array(23)].map((_, i) => {
-                        const rounds = i + 3;
-                        const minRounds = Math.max(3, selectedLeague?.sports?.length || 0);
-                        return (
-                          <option key={`draft-rounds-${rounds}`} value={rounds} disabled={rounds < minRounds}>
-                            {rounds} rounds
-                          </option>
-                        );
-                      })}
-                    </select>
+                    {(() => {
+                      const numSports = selectedLeague?.sports?.length || 0;
+                      const minRounds = Math.max(3, numSports);
+                      const recommendedRounds = numSports + 5;
+                      const currentRounds = draftOrderSettings.draftRounds || selectedLeague?.draftRounds || 8;
+                      return (
+                        <>
+                          <h3 className="text-base font-semibold text-white mb-2">Draft Rounds</h3>
+                          <p className="text-sm text-slate-400 mb-1">
+                            Minimum: {minRounds} rounds ({numSports} sport{numSports !== 1 ? 's' : ''}, one required pick each).
+                            Recommended: <span className="text-white font-semibold">{recommendedRounds} rounds</span> ({numSports} sport picks + 5 flex picks).
+                          </p>
+                          {currentRounds !== recommendedRounds && (
+                            <button
+                              type="button"
+                              onClick={() => setDraftOrderSettings({ ...draftOrderSettings, draftRounds: recommendedRounds })}
+                              className="text-xs text-blue-400 hover:text-blue-300 mb-3 transition-colors"
+                            >
+                              Set to recommended ({recommendedRounds})
+                            </button>
+                          )}
+                          {currentRounds === recommendedRounds && (
+                            <p className="text-xs text-emerald-400 mb-3">✓ Currently set to recommended</p>
+                          )}
+                          <select
+                            value={currentRounds}
+                            onChange={(e) => setDraftOrderSettings({
+                              ...draftOrderSettings,
+                              draftRounds: parseInt(e.target.value, 10)
+                            })}
+                            className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 text-white"
+                          >
+                            {[...Array(23)].map((_, i) => {
+                              const rounds = i + 3;
+                              const isRecommended = rounds === recommendedRounds;
+                              return (
+                                <option key={`draft-rounds-${rounds}`} value={rounds} disabled={rounds < minRounds}>
+                                  {rounds} rounds{isRecommended ? ' ★ recommended' : ''}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </>
+                      );
+                    })()}
                   </div>
 
                   <div className="pt-2 border-t border-slate-700/60">
