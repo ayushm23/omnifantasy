@@ -114,6 +114,13 @@ const DraftView = (props) => {
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [mobileSheet, setMobileSheet] = useState(null); // null | 'queue' | 'roster'
     const [activeDraftTab, setActiveDraftTab] = useState('draft');
+    const [lockToast, setLockToast] = useState(null); // string | null
+    const lockToastTimerRef = useRef(null);
+    const showLockToast = (msg) => {
+      clearTimeout(lockToastTimerRef.current);
+      setLockToast(msg);
+      lockToastTimerRef.current = setTimeout(() => setLockToast(null), 2500);
+    };
 
     useEffect(() => {
       if (!selectedLeague?.sports?.length) return;
@@ -844,7 +851,10 @@ const DraftView = (props) => {
                             ? 'Draft complete'
                             : isPickerSportFull(sport) || blocksRequiredSportCoverage
                             ? (
-                              <span className="relative group/lock cursor-help">
+                              <span
+                                className="relative group/lock cursor-help"
+                                onClick={(e) => { e.stopPropagation(); showLockToast(isPickerSportFull(sport) ? 'Sport slot filled — no flex picks remaining' : 'Would prevent covering all required sports'); }}
+                              >
                                 Locked
                                 <span className="pointer-events-none absolute bottom-full left-0 mb-1 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded opacity-0 group-hover/lock:opacity-100 transition-opacity z-50 w-max max-w-[180px] leading-snug">
                                   {isPickerSportFull(sport)
@@ -1742,6 +1752,12 @@ const DraftView = (props) => {
               )}
             </div>
           </div>
+        </div>
+      )}
+      {/* Lock reason toast — mobile tap feedback */}
+      {lockToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-slate-700 border border-slate-600 text-white text-sm rounded-xl shadow-xl pointer-events-none text-center max-w-[260px]">
+          🔒 {lockToast}
         </div>
       )}
       </div>
