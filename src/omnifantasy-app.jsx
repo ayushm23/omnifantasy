@@ -428,6 +428,17 @@ const OmnifantasyApp = () => {
   });
 
 
+  // Auto-remove queue items when their team gets picked by anyone.
+  useEffect(() => {
+    if (!myQueue?.length || !supabasePicks?.length) return;
+    const pickedKeys = new Set(supabasePicks.map((p) => `${p.sport}::${p.team}`));
+    myQueue.forEach((item) => {
+      if (pickedKeys.has(`${item.sport}::${item.team}`)) {
+        removeFromQueue(item.id);
+      }
+    });
+  }, [supabasePicks]);
+
   // Keep an active draft sport selected when entering/changing leagues.
   useEffect(() => {
     const sports = selectedLeague?.sports || [];
