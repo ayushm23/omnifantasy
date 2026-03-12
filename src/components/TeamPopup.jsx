@@ -350,7 +350,7 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
                     <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
                       {record.division || 'Season Record'}
                     </div>
-                    {selectedSeason === seasons?.current && !performance?.isComplete && (
+                    {selectedSeason === seasons?.current && seasons?.seasonStarted && !seasons?.currentComplete && (
                       <span className="flex items-center gap-1 text-xs font-semibold text-green-400">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
                         Live
@@ -385,7 +385,7 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
                 <div className="bg-slate-700/30 border border-slate-600/30 rounded-xl px-4 py-3">
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Championship Standings</div>
-                    {selectedSeason === seasons?.current && !performance?.isComplete && (
+                    {selectedSeason === seasons?.current && seasons?.seasonStarted && !seasons?.currentComplete && (
                       <span className="flex items-center gap-1 text-xs font-semibold text-green-400">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
                         Live

@@ -1,12 +1,16 @@
 // useTeamPerformance.js
-// Fetches recent performance data for a team/player from the sport_results cache.
+// Fetches the most recently COMPLETED season's results for a team/player.
+// Reads from the sport_results Supabase cache; if empty, triggers a fresh
+// fetch via resultsApi to populate it (free ESPN/Jolpica APIs, cache-first).
+//
 // Returns structured results based on sport type:
-//   - Single-event (NFL, NBA, etc.): last season placement
+//   - Single-event (NFL, NBA, etc.): last completed season placement
 //   - Multi-event (Golf, Tennis): per-event results across the 4 majors/slams
 //   - F1: championship standings position
 
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
+import { fetchSportResults } from './resultsApi';
 
 const TENNIS_SPORTS = new Set(['MensTennis', 'WomensTennis']);
 
@@ -30,6 +34,39 @@ function findEventResult(event, team, sport) {
   return null; // event not yet complete
 }
 
+function applyResults(results, season, sport, team, setPerformance) {
+  if (sport === 'F1') {
+    const pos = (results.standings || []).indexOf(team);
+    setPerformance({
+      type: 'f1',
+      season,
+      position: pos >= 0 ? pos + 1 : null,
+      total: results.standings?.length || 20,
+      isComplete: !!results.is_complete,
+    });
+  } else if (sport === 'Golf' || TENNIS_SPORTS.has(sport)) {
+    const events = (results.events || []).map(ev => ({
+      name: ev.name,
+      result: findEventResult(ev, team, sport),
+      isComplete: !!ev.is_complete,
+    }));
+    setPerformance({
+      type: 'multi',
+      season,
+      sport,
+      events,
+      isComplete: !!results.is_complete,
+    });
+  } else {
+    setPerformance({
+      type: 'single',
+      season,
+      result: findSingleEventResult(results, team),
+      isComplete: !!results.is_complete,
+    });
+  }
+}
+
 export function useTeamPerformance(sport, team) {
   const [performance, setPerformance] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -40,53 +77,43 @@ export function useTeamPerformance(sport, team) {
     setLoading(true);
     setPerformance(null);
 
-    supabase
-      .from('sport_results')
-      .select('results, season')
-      .eq('sport_code', sport)
-      .order('season', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data, error }) => {
+    async function load() {
+      // Fetch the two most recent rows so we can prefer a completed season.
+      // e.g. for NBA in March 2026: row 0 = 2025-26 (in-progress), row 1 = 2024-25 (complete).
+      // We prefer the completed row for the playoff result display.
+      const { data, error } = await supabase
+        .from('sport_results')
+        .select('results, season')
+        .eq('sport_code', sport)
+        .order('season', { ascending: false })
+        .limit(2);
+
+      if (cancelled) return;
+
+      let row = null;
+      if (!error && data?.length) {
+        // Prefer the most recently completed season
+        row = data.find(d => d.results?.is_complete) || data[0];
+      }
+
+      // If no cached data at all, trigger a fresh fetch from ESPN/Jolpica.
+      // fetchSportResults handles its own DB cache internally.
+      if (!row?.results) {
+        const fresh = await fetchSportResults(sport);
         if (cancelled) return;
-        setLoading(false);
-        if (error || !data?.results) return;
-
-        const { results, season } = data;
-
-        if (sport === 'F1') {
-          const pos = (results.standings || []).indexOf(team);
-          setPerformance({
-            type: 'f1',
-            season,
-            position: pos >= 0 ? pos + 1 : null,
-            total: results.standings?.length || 20,
-            isComplete: !!results.is_complete,
-          });
-
-        } else if (sport === 'Golf' || TENNIS_SPORTS.has(sport)) {
-          const events = (results.events || []).map(ev => ({
-            name: ev.name,
-            result: findEventResult(ev, team, sport),
-            isComplete: !!ev.is_complete,
-          }));
-          setPerformance({
-            type: 'multi',
-            season,
-            sport,
-            events,
-            isComplete: !!results.is_complete,
-          });
-
-        } else {
-          setPerformance({
-            type: 'single',
-            season,
-            result: findSingleEventResult(results, team),
-            isComplete: !!results.is_complete,
-          });
+        if (fresh) {
+          row = { results: fresh, season: fresh.season };
         }
-      });
+      }
+
+      if (cancelled) return;
+      setLoading(false);
+      if (!row?.results) return;
+
+      applyResults(row.results, row.season, sport, team, setPerformance);
+    }
+
+    load().catch(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
   }, [sport, team]);

@@ -121,6 +121,10 @@ function getSeasonYear(sportCode) {
   if (sportCode === 'UCL' && month < 6) {
     return year - 1;
   }
+  // MLB season runs April–October; before April the prior year's season is most recent
+  if (sportCode === 'MLB' && month < 4) {
+    return year - 1;
+  }
   return year;
 }
 
