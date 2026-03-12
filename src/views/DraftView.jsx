@@ -779,13 +779,21 @@ const DraftView = (props) => {
                             ) : hasNoEPData(sport) ? (
                               <span className="text-xs text-slate-500">TBD</span>
                             ) : null}
-                            <span className="text-xs text-slate-500">
-                              {alreadyPicked
-                                ? `Picked by ${pickedBy?.picker_name || pickedBy?.picker_email?.split('@')[0] || 'someone'}`
-                                : isDraftComplete ? 'Draft complete'
-                                : isPickerSportFull(sport) || blocksRequiredSportCoverage ? 'Locked'
-                                : 'Available'}
-                            </span>
+                            {isPickerSportFull(sport) || blocksRequiredSportCoverage ? (
+                              <button
+                                className="flex items-center gap-1 text-xs text-amber-500/80 font-medium"
+                                onClick={(e) => { e.stopPropagation(); showLockToast(isPickerSportFull(sport) ? 'Sport slot filled — no flex picks remaining' : 'Would prevent covering all required sports'); }}
+                              >
+                                🔒 Locked — tap for reason
+                              </button>
+                            ) : (
+                              <span className="text-xs text-slate-500">
+                                {alreadyPicked
+                                  ? `Picked by ${pickedBy?.picker_name || pickedBy?.picker_email?.split('@')[0] || 'someone'}`
+                                  : isDraftComplete ? 'Draft complete'
+                                  : 'Available'}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
