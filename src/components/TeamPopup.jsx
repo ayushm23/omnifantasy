@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { useEPHistory } from '../useEPHistory';
 import { useTeamNews } from '../useTeamNews';
+import { useTeamPerformance } from '../useTeamPerformance';
 import SportBadge from './SportBadge';
 
 // Time frame options: label shown in UI, and approximate number of days to display.
@@ -46,14 +47,26 @@ function formatAge(published) {
  */
 const POPUP_TABS = [
   { id: 'ep', label: 'EP Trend' },
+  { id: 'performance', label: 'Performance' },
   { id: 'news', label: 'News' },
 ];
+
+const RESULT_META = {
+  champion:       { label: 'Champion',       color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/30',   icon: '🏆' },
+  runner_up:      { label: 'Runner-up',      color: 'text-slate-200',   bg: 'bg-slate-700/40 border-slate-600/40',   icon: '🥈' },
+  semifinalist:   { label: 'Semifinalist',   color: 'text-blue-300',    bg: 'bg-blue-500/10 border-blue-500/30',     icon: '4️⃣' },
+  quarterfinalist:{ label: 'Quarterfinalist',color: 'text-slate-300',   bg: 'bg-slate-700/30 border-slate-600/30',   icon: '8️⃣' },
+  t9_t16:         { label: 'T9–T16',         color: 'text-slate-400',   bg: 'bg-slate-700/20 border-slate-600/20',   icon: '📍' },
+  r16:            { label: 'Round of 16',    color: 'text-slate-400',   bg: 'bg-slate-700/20 border-slate-600/20',   icon: '📍' },
+  none:           { label: 'Did not place',  color: 'text-slate-500',   bg: 'bg-slate-800/40 border-slate-700/20',   icon: '—'  },
+};
 
 export default function TeamPopup({ sport, team, currentEP, onClose }) {
   const [activeTab, setActiveTab] = useState('ep');
   const [activeFrame, setActiveFrame] = useState('1W');
   const { history, loading: epLoading } = useEPHistory(sport, team);
   const { news, hasTeamNews, loading: newsLoading, newsError } = useTeamNews(sport, team);
+  const { performance, loading: perfLoading } = useTeamPerformance(sport, team);
 
   // Filter history to the selected time frame.
   // Snapshots arrive roughly every 2 days, so days/2 approximates the count needed.
@@ -202,6 +215,98 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
                 )}
               </div>
             </>
+          )}
+
+          {/* Performance tab */}
+          {activeTab === 'performance' && (
+            <div className="space-y-3">
+              {perfLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-12 rounded-lg bg-slate-700/30 animate-pulse" />
+                  ))}
+                </div>
+              ) : !performance ? (
+                <p className="text-slate-500 text-sm text-center py-6">No performance data available.</p>
+              ) : performance.type === 'single' ? (
+                <>
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                    {performance.isComplete ? `${performance.season} Season Result` : `${performance.season} Season (in progress)`}
+                  </div>
+                  {performance.result === null ? (
+                    <p className="text-slate-400 text-sm">Season is still in progress.</p>
+                  ) : (() => {
+                    const meta = RESULT_META[performance.result] || RESULT_META.none;
+                    return (
+                      <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${meta.bg}`}>
+                        <span className="text-2xl">{meta.icon}</span>
+                        <span className={`text-base font-bold ${meta.color}`}>{meta.label}</span>
+                      </div>
+                    );
+                  })()}
+                </>
+              ) : performance.type === 'f1' ? (
+                <>
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                    {performance.isComplete ? `${performance.season} Championship Result` : `${performance.season} Championship (in progress)`}
+                  </div>
+                  {performance.position === null ? (
+                    <p className="text-slate-400 text-sm">Driver not found in standings.</p>
+                  ) : (
+                    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+                      performance.position === 1 ? RESULT_META.champion.bg :
+                      performance.position === 2 ? RESULT_META.runner_up.bg :
+                      performance.position <= 4 ? RESULT_META.semifinalist.bg :
+                      RESULT_META.quarterfinalist.bg
+                    }`}>
+                      <span className="text-2xl">
+                        {performance.position === 1 ? '🏆' : performance.position === 2 ? '🥈' : performance.position === 3 ? '🥉' : '🏎️'}
+                      </span>
+                      <div>
+                        <div className={`text-base font-bold ${
+                          performance.position === 1 ? RESULT_META.champion.color :
+                          performance.position === 2 ? RESULT_META.runner_up.color :
+                          RESULT_META.quarterfinalist.color
+                        }`}>
+                          P{performance.position}
+                        </div>
+                        <div className="text-xs text-slate-500">of {performance.total} drivers</div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : performance.type === 'multi' ? (
+                <>
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                    {performance.season} {performance.sport === 'Golf' ? 'Majors' : 'Grand Slams'}
+                    {!performance.isComplete && <span className="text-slate-500 normal-case font-normal ml-1">(in progress)</span>}
+                  </div>
+                  <div className="space-y-2">
+                    {performance.events.map((ev) => {
+                      const meta = ev.result ? (RESULT_META[ev.result] || RESULT_META.none) : null;
+                      return (
+                        <div
+                          key={ev.name}
+                          className={`flex items-center justify-between px-3 py-2.5 rounded-lg border ${
+                            meta ? meta.bg : 'bg-slate-800/40 border-slate-700/20'
+                          }`}
+                        >
+                          <span className="text-sm font-medium text-slate-200 truncate mr-3">{ev.name}</span>
+                          {ev.result === null ? (
+                            <span className="text-xs text-slate-500 shrink-0">Upcoming</span>
+                          ) : (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="text-base leading-none">{meta.icon}</span>
+                              <span className={`text-xs font-semibold ${meta.color}`}>{meta.label}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : null}
+            </div>
           )}
 
           {/* News tab */}
