@@ -102,8 +102,9 @@ const ROUND_MATCHERS = {
 /**
  * Returns the "season year" for a sport code — the year the season started.
  * Sports spanning two calendar years use the start year.
+ * Exported so callers can compute previous season years.
  */
-function getSeasonYear(sportCode) {
+export function getSeasonYear(sportCode) {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth(); // 0-indexed
@@ -143,11 +144,11 @@ function getEspnSeasonYear(sportCode) {
 
 // ─── ESPN scoreboard fetcher ─────────────────────────────────────────────────
 
-async function fetchEspnScoreboard(sportCode) {
+async function fetchEspnScoreboard(sportCode, espnYearOverride = null) {
   const config = ESPN_CONFIG[sportCode];
   if (!config) return [];
 
-  const espnYear = getEspnSeasonYear(sportCode);
+  const espnYear = espnYearOverride ?? getEspnSeasonYear(sportCode);
   const url = `${ESPN_BASE}/${config.sport}/${config.league}/scoreboard`
     + `?seasontype=${config.seasonType}&season=${espnYear}&limit=200`;
 
@@ -561,9 +562,13 @@ async function fetchWomensTennisResults() {
  * Fetch results for a single sport code.
  * Checks Supabase cache first; only calls external APIs if cache is missing or stale.
  * Returns the results object or null on error.
+ *
+ * @param {string}  sportCode
+ * @param {number|null} seasonYearOverride  - override the start-year (used to fetch a
+ *   specific previous season; for cross-year sports like NBA the ESPN year = override + 1)
  */
-export async function fetchSportResults(sportCode) {
-  const season = getSeasonYear(sportCode);
+export async function fetchSportResults(sportCode, seasonYearOverride = null) {
+  const season = seasonYearOverride ?? getSeasonYear(sportCode);
 
   // Check cache
   try {
@@ -584,19 +589,26 @@ export async function fetchSportResults(sportCode) {
     // Cache miss — proceed to fetch
   }
 
+  // Compute ESPN year. For cross-year sports, ESPN references by completion year.
+  const espnYear = seasonYearOverride !== null
+    ? (['NFL', 'NCAAF', 'NBA', 'NHL', 'NCAAMB', 'UCL'].includes(sportCode)
+        ? season + 1
+        : season)
+    : null; // null → fetchEspnScoreboard uses its own default
+
   // Fetch fresh data
   let results = null;
   try {
     if (sportCode === 'F1') {
-      results = await fetchF1Results();
+      if (!seasonYearOverride) results = await fetchF1Results();
     } else if (sportCode === 'Golf') {
-      results = await fetchGolfResults();
+      if (!seasonYearOverride) results = await fetchGolfResults();
     } else if (sportCode === 'MensTennis') {
-      results = await fetchMensTennisResults();
+      if (!seasonYearOverride) results = await fetchMensTennisResults();
     } else if (sportCode === 'WomensTennis') {
-      results = await fetchWomensTennisResults();
+      if (!seasonYearOverride) results = await fetchWomensTennisResults();
     } else if (ESPN_CONFIG[sportCode]) {
-      const events = await fetchEspnScoreboard(sportCode);
+      const events = await fetchEspnScoreboard(sportCode, espnYear);
       const parsed = parseEspnBracket(events, sportCode);
       results = { ...parsed, season };
     }

@@ -1,16 +1,15 @@
 // useTeamPerformance.js
 // Fetches the most recently COMPLETED season's results for a team/player.
-// Reads from the sport_results Supabase cache; if empty, triggers a fresh
-// fetch via resultsApi to populate it (free ESPN/Jolpica APIs, cache-first).
 //
-// Returns structured results based on sport type:
-//   - Single-event (NFL, NBA, etc.): last completed season placement
-//   - Multi-event (Golf, Tennis): per-event results across the 4 majors/slams
-//   - F1: championship standings position
+// Strategy:
+//   1. Query sport_results DB for the 2 most recent rows, prefer the completed one.
+//   2. If no completed row in DB, call fetchSportResults to populate the cache and try again.
+//   3. If the current season is still in-progress, fetch the *previous* season year from ESPN.
+//   4. Fall back to in-progress row as last resort (shows mid-season standing, no playoff label).
 
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { fetchSportResults } from './resultsApi';
+import { fetchSportResults, getSeasonYear } from './resultsApi';
 
 const TENNIS_SPORTS = new Set(['MensTennis', 'WomensTennis']);
 
@@ -78,10 +77,10 @@ export function useTeamPerformance(sport, team) {
     setPerformance(null);
 
     async function load() {
-      // Fetch the two most recent rows so we can prefer a completed season.
-      // e.g. for NBA in March 2026: row 0 = 2025-26 (in-progress), row 1 = 2024-25 (complete).
-      // We prefer the completed row for the playoff result display.
-      const { data, error } = await supabase
+      // Step 1: Query the 2 most recent cached rows; prefer a completed season.
+      // For in-progress sports (e.g. NBA 2025-26), this surfaces the prior
+      // completed season (e.g. 2024-25) if it was ever cached.
+      const { data } = await supabase
         .from('sport_results')
         .select('results, season')
         .eq('sport_code', sport)
@@ -90,20 +89,30 @@ export function useTeamPerformance(sport, team) {
 
       if (cancelled) return;
 
-      let row = null;
-      if (!error && data?.length) {
-        // Prefer the most recently completed season
-        row = data.find(d => d.results?.is_complete) || data[0];
-      }
+      let row = data?.find(d => d.results?.is_complete) || null;
 
-      // If no cached data at all, trigger a fresh fetch from ESPN/Jolpica.
-      // fetchSportResults handles its own DB cache internally.
-      if (!row?.results) {
+      // Step 2: If no completed row, trigger a fresh fetch for the current season.
+      if (!row) {
         const fresh = await fetchSportResults(sport);
         if (cancelled) return;
-        if (fresh) {
+        if (fresh?.is_complete) {
           row = { results: fresh, season: fresh.season };
+        } else if (fresh) {
+          // Current season in-progress — try fetching the previous completed season.
+          // For cross-year sports (NBA/NHL etc.): prevYear = currentYear - 1
+          const prevYear = getSeasonYear(sport) - 1;
+          const freshPrev = await fetchSportResults(sport, prevYear);
+          if (cancelled) return;
+          if (freshPrev?.is_complete) {
+            row = { results: freshPrev, season: freshPrev.season };
+          }
         }
+      }
+
+      // Step 3: Fall back to whatever in-progress row we have (shows live standings,
+      // no playoff label — better than showing nothing).
+      if (!row && data?.length) {
+        row = data[0];
       }
 
       if (cancelled) return;
