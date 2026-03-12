@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Plus, ArrowLeft, Settings } from 'lucide-react';
-import { getCurrentPickerFromState, normalizeDraftPicker, compareByEP, wouldBreakSportCoverage, picksUntilTurn } from '../utils/draft';
+import { getCurrentPickerFromState, normalizeDraftPicker, compareByEP, wouldBreakSportCoverage, picksUntilTurn, generateDraftBoard } from '../utils/draft';
 import SportBadge from '../components/SportBadge';
 import RulesModal from '../components/RulesModal';
 import ConfirmModal from '../components/ConfirmModal';
 import TimerDisplay from '../components/TimerDisplay';
+import TabButton from '../components/TabButton';
+import EmptyState from '../components/EmptyState';
+import { calculatePickPoints } from '../utils/points';
 
 import { getSportDisplayCode } from '../config/sports';
 import { getUserInitials, getUserDisplayName, getMemberDisplayName } from '../utils/userDisplay';
@@ -21,7 +24,7 @@ const DraftView = (props) => {
     getSportNameByCode, getDraftPoolForSport, expectedPoints,
     setPendingPick, setShowPickConfirmation, showPickConfirmation, pendingPick,
     queue, onAddToQueue, onRemoveFromQueue, onMoveQueueItem, onClearQueue,
-    queueError, setLeagueTab,
+    queueError, setLeagueTab, standings, resultsLoading,
   } = props;
 
   const {
@@ -110,6 +113,7 @@ const DraftView = (props) => {
     const [showClearQueueConfirm, setShowClearQueueConfirm] = useState(false);
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [mobileSheet, setMobileSheet] = useState(null); // null | 'queue' | 'roster'
+    const [activeDraftTab, setActiveDraftTab] = useState('draft');
 
     useEffect(() => {
       if (!selectedLeague?.sports?.length) return;
@@ -249,6 +253,8 @@ const DraftView = (props) => {
       return map;
     }, [queue]);
 
+    const draftBoard = useMemo(() => generateDraftBoard(supabasePicks, currentUser?.email), [supabasePicks, currentUser?.email]);
+
     const myPicks = useMemo(() =>
       (supabasePicks || []).filter(
         p => p.picker_email?.toLowerCase() === currentUser?.email?.toLowerCase()
@@ -338,6 +344,13 @@ const DraftView = (props) => {
         setRollbackPickInRound(1);
       }
     }, [rollbackRound, rollbackPickInRound, maxRoundOption, maxRollbackOverall]);
+
+    useEffect(() => {
+      if (isDraftComplete) {
+        setLeagueTab('draft-results');
+        setCurrentView('league');
+      }
+    }, [isDraftComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
       <div className="flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" style={{ height: '100dvh' }}>
@@ -534,32 +547,21 @@ const DraftView = (props) => {
             </div>
           </div>
         </div>
-        
+
+        {/* Tab Bar */}
+        <div className="bg-slate-800/40 border-b border-slate-700 shrink-0">
+          <div className="max-w-7xl mx-auto px-3 md:px-6 flex gap-0">
+            <TabButton label="Draft" isActive={activeDraftTab === 'draft'} onClick={() => setActiveDraftTab('draft')} />
+            <TabButton label="Big Board" isActive={activeDraftTab === 'big-board'} onClick={() => setActiveDraftTab('big-board')} />
+            <TabButton label="Draft Results" isActive={activeDraftTab === 'draft-results'} onClick={() => setActiveDraftTab('draft-results')} />
+          </div>
+        </div>
+
         {/* Draft Content */}
         <div className="flex-1 overflow-hidden flex gap-0 md:gap-6 px-3 md:px-6 max-w-[1600px] mx-auto w-full">
           <div className="flex-1 min-w-0 overflow-y-auto py-4 md:py-8">
+{activeDraftTab === 'draft' && (
 <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-3 md:p-6">
-            {isDraftComplete ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
-                <div className="text-5xl">🏆</div>
-                <h2 className="text-2xl font-bold text-emerald-400">Draft Complete!</h2>
-                <p className="text-slate-400 text-sm max-w-xs">All picks have been made.</p>
-                <div className="flex gap-3 mt-2">
-                  <button
-                    onClick={() => { setLeagueTab('draft-results'); setCurrentView('league'); }}
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold transition-colors"
-                  >
-                    View Draft Results
-                  </button>
-                  <button
-                    onClick={() => { setLeagueTab('standings'); setCurrentView('league'); }}
-                    className="px-5 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-semibold transition-colors"
-                  >
-                    View Standings
-                  </button>
-                </div>
-              </div>
-            ) : (
             <>
             <h2 className="text-xl font-bold text-white mb-4">Make Your Pick</h2>
 
@@ -917,8 +919,178 @@ const DraftView = (props) => {
               )}
             </div>
             </>
-            )}{/* end isDraftComplete ternary */}
+</div>
+)}{/* end activeDraftTab === 'draft' */}
+
+{/* Big Board Tab */}
+{activeDraftTab === 'big-board' && (
+  <div className="space-y-3">
+    {draftBoard.length === 0 ? (
+      <EmptyState icon="📋" title="No Draft Results Yet" description="The big board will show all team rosters once picks are made." />
+    ) : (
+      <>
+        {(standings || []).map((team) => {
+          const teamPicks = draftBoard.filter(pick => pick.picker_email?.toLowerCase() === team.email?.toLowerCase());
+          return (
+            <div
+              key={team.email || team.teamName}
+              className={`rounded-xl overflow-hidden ${
+                team.isUser
+                  ? 'bg-blue-500/10 border-2 border-blue-500/30'
+                  : 'bg-slate-800/50 border border-slate-700/50'
+              }`}
+            >
+              <div className="bg-gradient-to-r from-slate-700/50 to-slate-800/50 px-3 py-2.5 border-b border-slate-700/50">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-bold text-white">{team.teamName}</h3>
+                  {(() => {
+                    const teamPoints = teamPicks.reduce((sum, p) => sum + (calculatePickPoints(p, sportResults) || 0), 0);
+                    const teamEP = teamPicks.reduce((sum, p) => {
+                      const ep = getExpectedPoints(p.sport, p.team_name);
+                      return sum + (ep || 0);
+                    }, 0);
+                    const hasMissingEP = teamPicks.some(p => hasNoEPData(p.sport));
+                    return (
+                      <div className="flex items-center gap-2.5">
+                        {teamEP > 0 && (
+                          <div className="text-xs text-amber-400">
+                            ~{Math.round(teamEP * 10) / 10} EP
+                            {hasMissingEP && (
+                              <span className="relative group/tip text-slate-500 ml-1 cursor-help">*<span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 pointer-events-none transition-opacity z-50">Some picks lack odds data — EP total is partial</span></span>
+                            )}
+                          </div>
+                        )}
+                        {teamPoints > 0 ? (
+                          <div className="text-base font-bold text-green-400">{teamPoints} pts</div>
+                        ) : (
+                          <div className="text-xs text-slate-500">{teamPicks.length} picks</div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+              <div className="px-2.5 py-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5">
+                {teamPicks.map((pick) => {
+                  const sportColor = getSportColor(pick.sport);
+                  const ep = getExpectedPoints(pick.sport, pick.team_name);
+                  const pts = calculatePickPoints(pick, sportResults);
+                  return (
+                    <div key={pick.pick_number} className={`rounded-lg px-2 py-1.5 border ${sportColor}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <SportBadge sport={pick.sport} size="sm" />
+                        <span className="text-[10px] text-slate-500 font-semibold">{formatPick(pick)}</span>
+                      </div>
+                      <button
+                        className="font-semibold text-white text-xs text-left hover:text-amber-300 transition-colors leading-tight w-full truncate block"
+                        onClick={() => setSelectedTeamInfo({ sport: pick.sport, team: pick.team_name, currentEP: ep })}
+                        title="View EP trend"
+                      >
+                        {pick.team_name}
+                      </button>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {ep !== null ? (
+                          <span className="text-[10px] text-amber-400">~{ep} EP</span>
+                        ) : hasNoEPData(pick.sport) ? (
+                          <span className="relative group/tip text-[10px] text-slate-500 cursor-help">TBD<span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 pointer-events-none transition-opacity z-50">Odds not yet available for this sport</span></span>
+                        ) : null}
+                        {pts > 0 ? (
+                          <span className="text-xs font-bold text-green-400 ml-auto">+{pts}</span>
+                        ) : pts === null ? (
+                          <span className="text-[10px] text-slate-600 ml-auto">…</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </>
+    )}
+  </div>
+)}
+
+{/* Draft Results Tab */}
+{activeDraftTab === 'draft-results' && (
+  <div className="space-y-4">
+    {draftBoard.length === 0 ? (
+      <EmptyState icon="🎯" title="No Draft Results Yet" description="Draft results will appear here once picks are made." />
+    ) : (
+      <>
+        {/* Desktop table */}
+        <div className="hidden md:block space-y-2">
+          <div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-semibold text-slate-400 uppercase bg-slate-800/50 rounded-lg">
+            <div className="col-span-1">Pick</div>
+            <div className="col-span-1">Rnd</div>
+            <div className="col-span-3">Drafter</div>
+            <div className="col-span-2">Sport</div>
+            <div className="col-span-3">Selection</div>
+            <div className="col-span-1 text-center">EP</div>
+            <div className="col-span-1 text-center">Pts</div>
           </div>
+          {draftBoard.map((pick) => {
+            const sportColor = getSportColor(pick.sport);
+            const ep = getExpectedPoints(pick.sport, pick.team_name);
+            const pts = calculatePickPoints(pick, sportResults);
+            return (
+              <div key={pick.pick_number} className={`grid grid-cols-12 gap-4 items-center px-4 py-3 rounded-lg transition-all ${pick.isUser ? 'bg-blue-500/10 border-2 border-blue-500/30' : 'bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50'}`}>
+                <div className="col-span-1"><span className="text-lg font-bold text-slate-400">{formatPick(pick)}</span></div>
+                <div className="col-span-1"><span className="text-sm text-slate-500">R{pick.round}</span></div>
+                <div className="col-span-3"><div className="font-semibold text-white truncate">{pick.picker_name}</div></div>
+                <div className="col-span-2"><span className={`px-2 py-1 rounded border text-xs font-semibold ${sportColor}`}>{getSportDisplayCode(pick.sport)}</span></div>
+                <div className="col-span-3">
+                  <button className="text-white font-medium text-left hover:text-amber-300 transition-colors truncate w-full" onClick={() => setSelectedTeamInfo({ sport: pick.sport, team: pick.team_name, currentEP: ep })}>{pick.team_name}</button>
+                </div>
+                <div className="col-span-1 text-center">
+                  {ep !== null ? <span className="text-amber-400 text-sm">~{ep}</span> : hasNoEPData(pick.sport) ? <span className="text-slate-500 text-sm">TBD</span> : <span className="text-slate-600">-</span>}
+                </div>
+                <div className="col-span-1 text-center">
+                  {pts > 0 ? <span className="text-green-400 font-bold">+{pts}</span> : pts === 0 ? <span className="text-slate-500">0</span> : resultsLoading ? <div className="h-4 w-8 bg-slate-700 rounded animate-pulse mx-auto" /> : <span className="text-slate-600">-</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {/* Mobile cards */}
+        <div className="md:hidden space-y-2">
+          {draftBoard.map((pick) => {
+            const sportColor = getSportColor(pick.sport);
+            const ep = getExpectedPoints(pick.sport, pick.team_name);
+            const pts = calculatePickPoints(pick, sportResults);
+            return (
+              <div key={pick.pick_number} className={`rounded-xl px-3 py-3 ${pick.isUser ? 'bg-blue-500/10 border-2 border-blue-500/30' : 'bg-slate-800/50 border border-slate-700/50'}`}>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-xs font-mono text-slate-500 shrink-0">{formatPick(pick)}</span>
+                  <span className={`px-1.5 py-0.5 rounded border text-[10px] font-semibold shrink-0 ${sportColor}`}>{getSportDisplayCode(pick.sport)}</span>
+                  <button
+                    className="flex-1 text-sm font-semibold text-white text-left truncate hover:text-amber-300 transition-colors"
+                    onClick={() => setSelectedTeamInfo({ sport: pick.sport, team: pick.team_name, currentEP: ep })}
+                  >
+                    {pick.team_name}
+                  </button>
+                  {pts > 0 && <span className="text-green-400 font-bold text-sm shrink-0">+{pts}</span>}
+                  {pts === 0 && <span className="text-slate-500 text-sm shrink-0">0</span>}
+                  {pts === null && resultsLoading && <div className="h-3.5 w-6 bg-slate-700 rounded animate-pulse shrink-0" />}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400 truncate">{pick.picker_name}</span>
+                  {ep !== null
+                    ? <span className="text-xs text-amber-400 shrink-0 ml-2">~{ep} EP</span>
+                    : hasNoEPData(pick.sport)
+                      ? <span className="text-xs text-slate-500 shrink-0 ml-2">TBD</span>
+                      : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </>
+    )}
+  </div>
+)}
+
           </div>{/* end flex-1 main area */}
 
           {/* My Roster Sidebar */}

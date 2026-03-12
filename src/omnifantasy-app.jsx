@@ -2315,6 +2315,8 @@ const OmnifantasyApp = () => {
           onReorderQueue={reorderAllQueue}
           queueError={queueError}
           setLeagueTab={setLeagueTab}
+          standings={standings}
+          resultsLoading={resultsLoading}
         />
         <LeagueChat
           leagueId={selectedLeagueId}
