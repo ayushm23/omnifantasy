@@ -671,9 +671,12 @@ export const syncMemberName = async (userEmail, displayName) => {
 export const sendOtcEmail = async (leagueId) => {
   try {
     const appUrl = window.location.origin;
-    await supabase.functions.invoke('send-otc-email', {
+    console.log('sendOtcEmail: invoking for league', leagueId);
+    const { data, error } = await supabase.functions.invoke('send-otc-email', {
       body: { leagueId, appUrl },
     });
+    if (error) console.warn('sendOtcEmail: function error', error);
+    else console.log('sendOtcEmail: response', data);
   } catch (e) {
     console.warn('sendOtcEmail: failed', e);
   }
