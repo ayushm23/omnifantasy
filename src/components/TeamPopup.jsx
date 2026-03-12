@@ -44,7 +44,13 @@ function formatAge(published) {
  *   currentEP {number|null}  - current EP value from parent's expectedPoints state
  *   onClose   {function}     - called when X button is clicked
  */
+const POPUP_TABS = [
+  { id: 'ep', label: 'EP Trend' },
+  { id: 'news', label: 'News' },
+];
+
 export default function TeamPopup({ sport, team, currentEP, onClose }) {
+  const [activeTab, setActiveTab] = useState('ep');
   const [activeFrame, setActiveFrame] = useState('1W');
   const { history, loading: epLoading } = useEPHistory(sport, team);
   const { news, hasTeamNews, loading: newsLoading, newsError } = useTeamNews(sport, team);
@@ -74,7 +80,17 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
         <div className="flex items-center justify-between p-5 border-b border-slate-700/60 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <SportBadge sport={sport} size="md" className="shrink-0" />
-            <h2 className="text-lg font-bold text-white truncate">{team}</h2>
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold text-white truncate">{team}</h2>
+              {currentEP !== null && currentEP !== undefined ? (
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-base font-bold text-amber-400">~{currentEP} EP</span>
+                  <span className="text-slate-500 text-xs">current</span>
+                </div>
+              ) : (
+                <span className="text-slate-500 text-xs">No EP data</span>
+              )}
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -85,150 +101,159 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
           </button>
         </div>
 
+        {/* Tab bar */}
+        <div className="flex border-b border-slate-700/60 shrink-0 px-5">
+          {POPUP_TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`px-4 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px ${
+                activeTab === id
+                  ? 'border-amber-500 text-amber-400'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* Scrollable body */}
         <div className="p-5 space-y-4 overflow-y-auto">
 
-          {/* Current EP */}
-          <div className="flex items-baseline gap-2">
-            {currentEP !== null && currentEP !== undefined ? (
-              <>
-                <span className="text-2xl font-bold text-amber-400">~{currentEP} EP</span>
-                <span className="text-slate-400 text-xs">current expected points</span>
-              </>
-            ) : (
-              <span className="text-slate-500 text-sm">No EP data available</span>
-            )}
-          </div>
-
-          {/* Section label + time frame selector */}
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">EP Trend</span>
-            <div className="flex gap-1">
-              {TIME_FRAMES.map(({ label }) => (
-                <button
-                  key={label}
-                  onClick={() => setActiveFrame(label)}
-                  className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
-                    activeFrame === label
-                      ? 'bg-amber-500/20 border border-amber-500/50 text-amber-400'
-                      : 'bg-slate-700/40 border border-slate-600/40 text-slate-400 hover:text-slate-200 hover:border-slate-500/60'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Chart area */}
-          <div className="h-44">
-            {epLoading ? (
-              <div className="flex items-center justify-center h-full gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+          {/* EP Trend tab */}
+          {activeTab === 'ep' && (
+            <>
+              {/* Time frame selector */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">EP Trend</span>
+                <div className="flex gap-1">
+                  {TIME_FRAMES.map(({ label }) => (
+                    <button
+                      key={label}
+                      onClick={() => setActiveFrame(label)}
+                      className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
+                        activeFrame === label
+                          ? 'bg-amber-500/20 border border-amber-500/50 text-amber-400'
+                          : 'bg-slate-700/40 border border-slate-600/40 text-slate-400 hover:text-slate-200 hover:border-slate-500/60'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ) : chartEmpty ? (
-              <div className="flex items-center justify-center h-full px-4 text-center">
-                <p className="text-slate-500 text-sm leading-relaxed">
-                  EP trend data is being collected.
-                  <br />
-                  Check back after the next odds refresh (~2 days).
-                </p>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={filteredHistory} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fill: '#94a3b8', fontSize: 11 }}
-                    axisLine={{ stroke: '#475569' }}
-                    tickLine={false}
-                    interval="preserveStartEnd"
-                  />
-                  <YAxis
-                    domain={[minEP, maxEP]}
-                    tick={{ fill: '#94a3b8', fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={36}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#0f172a',
-                      border: '1px solid #475569',
-                      borderRadius: '8px',
-                      color: '#f1f5f9',
-                      fontSize: 12,
-                    }}
-                    formatter={(value) => [`~${value} EP`, 'Expected Points']}
-                    labelStyle={{ color: '#94a3b8', marginBottom: 4 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="ep"
-                    stroke="#f59e0b"
-                    strokeWidth={2}
-                    dot={{ fill: '#f59e0b', r: 3, strokeWidth: 0 }}
-                    activeDot={{ r: 5, fill: '#fbbf24', strokeWidth: 0 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </div>
 
-          {/* Divider */}
-          <div className="border-t border-slate-700/60" />
-
-          {/* News section */}
-          <div className="space-y-2">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-              {hasTeamNews ? 'Recent Headlines' : 'Sport News'}
-            </span>
-
-            {newsLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="p-3 rounded-lg bg-slate-700/30 animate-pulse space-y-2">
-                    <div className="h-3 bg-slate-600/60 rounded w-full" />
-                    <div className="h-3 bg-slate-600/40 rounded w-3/4" />
+              {/* Chart area */}
+              <div className="h-52">
+                {epLoading ? (
+                  <div className="flex items-center justify-center h-full gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
-                ))}
+                ) : chartEmpty ? (
+                  <div className="flex items-center justify-center h-full px-4 text-center">
+                    <p className="text-slate-500 text-sm leading-relaxed">
+                      EP trend data is being collected.
+                      <br />
+                      Check back after the next odds refresh (~2 days).
+                    </p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={filteredHistory} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        axisLine={{ stroke: '#475569' }}
+                        tickLine={false}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis
+                        domain={[minEP, maxEP]}
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={36}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#0f172a',
+                          border: '1px solid #475569',
+                          borderRadius: '8px',
+                          color: '#f1f5f9',
+                          fontSize: 12,
+                        }}
+                        formatter={(value) => [`~${value} EP`, 'Expected Points']}
+                        labelStyle={{ color: '#94a3b8', marginBottom: 4 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="ep"
+                        stroke="#f59e0b"
+                        strokeWidth={2}
+                        dot={{ fill: '#f59e0b', r: 3, strokeWidth: 0 }}
+                        activeDot={{ r: 5, fill: '#fbbf24', strokeWidth: 0 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
               </div>
-            ) : newsError ? (
-              <p className="text-slate-500 text-sm">Unable to load news.</p>
-            ) : news.length === 0 ? (
-              <p className="text-slate-500 text-sm">No news available.</p>
-            ) : (
-              <div className="space-y-2">
-                {news.map((article, i) => (
-                  <a
-                    key={i}
-                    href={article.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-start justify-between gap-3 p-3 rounded-lg bg-slate-700/30 hover:bg-slate-700/60 transition-colors group"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-200 group-hover:text-white leading-snug">
-                        {article.headline}
-                      </p>
-                      {article.description && (
-                        <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                          {article.description}
-                        </p>
-                      )}
-                      {article.published && (
-                        <p className="text-xs text-slate-500 mt-1">{formatAge(article.published)}</p>
-                      )}
+            </>
+          )}
+
+          {/* News tab */}
+          {activeTab === 'news' && (
+            <div className="space-y-2">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                {hasTeamNews ? 'Recent Headlines' : 'Sport News'}
+              </span>
+
+              {newsLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="p-3 rounded-lg bg-slate-700/30 animate-pulse space-y-2">
+                      <div className="h-3 bg-slate-600/60 rounded w-full" />
+                      <div className="h-3 bg-slate-600/40 rounded w-3/4" />
                     </div>
-                    <ExternalLink size={13} className="shrink-0 mt-0.5 text-slate-500 group-hover:text-slate-300 transition-colors" />
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              ) : newsError ? (
+                <p className="text-slate-500 text-sm">Unable to load news.</p>
+              ) : news.length === 0 ? (
+                <p className="text-slate-500 text-sm">No news available.</p>
+              ) : (
+                <div className="space-y-2">
+                  {news.map((article, i) => (
+                    <a
+                      key={i}
+                      href={article.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-start justify-between gap-3 p-3 rounded-lg bg-slate-700/30 hover:bg-slate-700/60 transition-colors group"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-200 group-hover:text-white leading-snug">
+                          {article.headline}
+                        </p>
+                        {article.description && (
+                          <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                            {article.description}
+                          </p>
+                        )}
+                        {article.published && (
+                          <p className="text-xs text-slate-500 mt-1">{formatAge(article.published)}</p>
+                        )}
+                      </div>
+                      <ExternalLink size={13} className="shrink-0 mt-0.5 text-slate-500 group-hover:text-slate-300 transition-colors" />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
         </div>
       </div>
