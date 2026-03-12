@@ -349,12 +349,11 @@ const LeagueView = (props) => {
           <div className="flex gap-2 border-b border-slate-700/50 mb-6 min-w-max md:min-w-0">
             <TabButton label="My Roster" isActive={leagueTab === 'my-roster'} onClick={() => setLeagueTab('my-roster')} />
             <TabButton label="Standings" isActive={leagueTab === 'standings'} onClick={() => setLeagueTab('standings')} />
-            {/* Only show Big Board if draft has started */}
-            {selectedLeague?.draftStarted && (
+            {/* Only show Big Board and Draft Results once draft is complete */}
+            {selectedLeague?.draftStarted && isDraftComplete && (
               <TabButton label="Big Board" isActive={leagueTab === 'big-board'} onClick={() => setLeagueTab('big-board')} />
             )}
-            {/* Show Draft Results as soon as the draft starts */}
-            {selectedLeague?.draftStarted && (
+            {selectedLeague?.draftStarted && isDraftComplete && (
               <TabButton label="Draft Results" isActive={leagueTab === 'draft-results'} onClick={() => setLeagueTab('draft-results')} />
             )}
           </div>
