@@ -13,6 +13,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getLeagueChat, sendChatMessage, subscribeToLeagueChat, unsubscribe } from './supabaseClient';
 
+const lastReadKey = (leagueId, userEmail) => `chat_last_read_${leagueId}_${userEmail}`;
+
 export function useChatMessages(leagueId, userEmail, isOpen) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -24,7 +26,7 @@ export function useChatMessages(leagueId, userEmail, isOpen) {
     isOpenRef.current = isOpen;
   }, [isOpen]);
 
-  // Load history when leagueId changes
+  // Load history when leagueId changes; seed unread count from localStorage
   useEffect(() => {
     if (!leagueId) {
       setMessages([]);
@@ -36,8 +38,18 @@ export function useChatMessages(leagueId, userEmail, isOpen) {
     getLeagueChat(leagueId).then(({ data }) => {
       setMessages(data);
       setLoading(false);
+      // Count messages from others that arrived since the user last had the panel open
+      if (userEmail && data?.length) {
+        const lastRead = localStorage.getItem(lastReadKey(leagueId, userEmail));
+        if (lastRead) {
+          const count = data.filter(
+            (m) => m.user_email !== userEmail && m.created_at > lastRead
+          ).length;
+          setUnreadCount(count);
+        }
+      }
     });
-  }, [leagueId]);
+  }, [leagueId, userEmail]);
 
   // Real-time subscription
   useEffect(() => {
@@ -98,7 +110,12 @@ export function useChatMessages(leagueId, userEmail, isOpen) {
     return { error: null };
   }, [leagueId, userEmail]);
 
-  const clearUnread = useCallback(() => setUnreadCount(0), []);
+  const clearUnread = useCallback(() => {
+    setUnreadCount(0);
+    if (leagueId && userEmail) {
+      localStorage.setItem(lastReadKey(leagueId, userEmail), new Date().toISOString());
+    }
+  }, [leagueId, userEmail]);
 
   return { messages, loading, unreadCount, sendMessage, clearUnread };
 }
