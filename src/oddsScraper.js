@@ -1,14 +1,11 @@
 // Data fetcher for sports not covered by The Odds API
-// Currently handles: F1, Men's Tennis (ATP), Women's Tennis (WTA)
+// Currently handles: F1
 //
 // F1: Fetches live driver standings from the Jolpica API (free, CORS-friendly)
 //     and converts championship points to win probabilities via softmax.
 //     During off-season or early season, uses preseason market-derived odds.
-// Tennis: Uses preseason market-derived odds for Grand Slam aggregates.
 //
-// Market-derived odds are based on published betting lines and should be
-// updated at the start of each season. When The Odds API adds coverage for
-// these sports, switch them to SPORT_KEY_MAP in oddsApi.js instead.
+// Tennis (ATP/WTA) and Golf are handled via SPORT_KEY_MAP in oddsApi.js.
 //
 // All results are cached in the same odds_cache table with the same 2-day TTL.
 
@@ -47,76 +44,7 @@ const F1_PRESEASON_ODDS = {
   'Liam Lawson': 0.003,
 };
 
-// ATP 2026 Grand Slam aggregate — implied win probabilities
-// Represents average chance of winning across the 4 Grand Slams
-const ATP_ODDS = {
-  'Jannik Sinner': 0.16,
-  'Carlos Alcaraz': 0.15,
-  'Novak Djokovic': 0.08,
-  'Alexander Zverev': 0.07,
-  'Daniil Medvedev': 0.06,
-  'Taylor Fritz': 0.04,
-  'Casper Ruud': 0.035,
-  'Holger Rune': 0.03,
-  'Alex de Minaur': 0.025,
-  'Stefanos Tsitsipas': 0.025,
-  'Ben Shelton': 0.02,
-  'Andrey Rublev': 0.02,
-  'Hubert Hurkacz': 0.02,
-  'Lorenzo Musetti': 0.018,
-  'Tommy Paul': 0.015,
-  'Grigor Dimitrov': 0.015,
-  'Frances Tiafoe': 0.012,
-  'Felix Auger-Aliassime': 0.012,
-  'Arthur Fils': 0.01,
-  'Ugo Humbert': 0.01,
-  'Sebastian Korda': 0.01,
-  'Karen Khachanov': 0.008,
-  'Alexander Bublik': 0.008,
-  'Alexei Popyrin': 0.007,
-  'Cameron Norrie': 0.006,
-  'Nicolas Jarry': 0.006,
-  'Adrian Mannarino': 0.005,
-  'Tallon Griekspoor': 0.005,
-  'Sebastian Baez': 0.005,
-  'Jannik Paul': 0.004,
-};
-
-// WTA 2026 Grand Slam aggregate — implied win probabilities
-const WTA_ODDS = {
-  'Aryna Sabalenka': 0.14,
-  'Iga Swiatek': 0.13,
-  'Coco Gauff': 0.10,
-  'Elena Rybakina': 0.06,
-  'Qinwen Zheng': 0.05,
-  'Jasmine Paolini': 0.04,
-  'Jessica Pegula': 0.035,
-  'Madison Keys': 0.03,
-  'Emma Navarro': 0.025,
-  'Karolina Muchova': 0.025,
-  'Barbora Krejcikova': 0.02,
-  'Marketa Vondrousova': 0.02,
-  'Ons Jabeur': 0.02,
-  'Danielle Collins': 0.018,
-  'Donna Vekic': 0.015,
-  'Maria Sakkari': 0.015,
-  'Katie Boulter': 0.015,
-  'Linda Noskova': 0.012,
-  'Daria Kasatkina': 0.01,
-  'Jelena Ostapenko': 0.01,
-  'Marta Kostyuk': 0.01,
-  'Beatriz Haddad Maia': 0.008,
-  'Leylah Fernandez': 0.008,
-  'Victoria Azarenka': 0.008,
-  'Caroline Garcia': 0.007,
-  'Liudmila Samsonova': 0.006,
-  'Sloane Stephens': 0.005,
-  'Veronika Kudermetova': 0.005,
-  'Elise Mertens': 0.004,
-  'Anastasia Pavlyuchenkova': 0.004,
-};
-
-const SCRAPED_SPORT_CODES = ['F1', 'MensTennis', 'WomensTennis'];
+const SCRAPED_SPORT_CODES = ['F1'];
 
 /**
  * Normalize a preseason odds map so probabilities sum to exactly 1.0.
@@ -190,10 +118,6 @@ export async function fetchScrapedProbabilities(sportCode) {
   switch (sportCode) {
     case 'F1':
       return fetchF1Probabilities();
-    case 'MensTennis':
-      return normalizeOdds(ATP_ODDS);
-    case 'WomensTennis':
-      return normalizeOdds(WTA_ODDS);
     default:
       return {};
   }

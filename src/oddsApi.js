@@ -10,7 +10,7 @@
 //
 // Caching strategy: Store results in Supabase odds_cache table shared by all users.
 // Refresh every 2 days to stay within free-tier API limits (500 credits/month).
-// ~11 API calls per refresh × ~15 refreshes/month = ~165 credits/month.
+// ~21 API calls per refresh × ~15 refreshes/month = ~315 credits/month.
 
 import { getOddsCache, upsertOddsCache, insertEPHistory } from './supabaseClient';
 import { fetchScrapedProbabilities, isScrapedSport } from './oddsScraper';
@@ -19,10 +19,11 @@ import { normalizeOddsApiName } from './utils/aliases';
 const API_BASE = 'https://api.the-odds-api.com/v4/sports';
 const CACHE_TTL = 2 * 24 * 60 * 60 * 1000; // 2 days
 // Bump this when the EP formula changes to invalidate stale cached values
-const CACHE_VERSION = 7;
+const CACHE_VERSION = 8;
 const DEFAULT_ODDS_REGIONS = 'us';
 const GLOBAL_ODDS_REGIONS = 'us,uk,eu,au';
-const GLOBAL_REGIONS_SPORTS = new Set(['UCL', 'Euro', 'WorldCup']);
+// Sports where global bookmaker regions give better odds coverage
+const GLOBAL_REGIONS_SPORTS = new Set(['UCL', 'Euro', 'WorldCup', 'MensTennis', 'WomensTennis']);
 const STRICT_FUTURES_ONLY_SPORTS = new Set(['NCAAF']);
 
 // Maps OmniFantasy sport codes to The Odds API sport keys
@@ -43,8 +44,19 @@ const SPORT_KEY_MAP = {
     'golf_the_open_championship_winner',
     'golf_pga_championship_winner',
   ],
-  // No outright winner markets available on The Odds API:
-  // MensTennis, WomensTennis, F1
+  MensTennis: [
+    'tennis_atp_aus_open_singles',
+    'tennis_atp_french_open',
+    'tennis_atp_wimbledon',
+    'tennis_atp_us_open',
+  ],
+  WomensTennis: [
+    'tennis_wta_aus_open_singles',
+    'tennis_wta_french_open',
+    'tennis_wta_wimbledon',
+    'tennis_wta_us_open',
+  ],
+  // F1 still uses scraper (Jolpica API — no Odds API coverage)
 };
 
 // Scoring by finishing position
@@ -156,7 +168,7 @@ const REFRESH_GRACE = 60 * 1000; // 60 seconds
  * Checks Supabase cache first (shared across all users, 2-day TTL).
  * Only calls The Odds API if cache is missing or stale.
  * Uses a refresh lock to prevent concurrent API calls from multiple clients.
- * For multi-event sports (Golf, Tennis), aggregates across all events.
+ * For multi-event sports (Golf, Tennis), averages across all events with live markets.
  * Returns { 'Team Name': expectedPoints, ... }
  */
 export async function fetchExpectedPoints(sportCode) {
@@ -234,11 +246,11 @@ export async function fetchExpectedPoints(sportCode) {
         }
       }
 
-      // For multi-event sports (e.g. Golf), average across events instead of summing.
+      // For multi-event sports (Golf, Tennis), average across events instead of summing.
       // The fantasy scoring is based on a single aggregate ranking, not per-event payouts.
-      // Divide only by events that actually returned data — some majors have no odds
-      // available early in the year, and dividing by 4 when only 2 returned data
-      // would cut EP in half.
+      // Divide only by events that actually returned data — markets for upcoming slams/majors
+      // often aren't open yet. Dividing only by active markets is equivalent to copying
+      // those odds to the silent events, which is exactly the intended fallback behavior.
       if (sportKeys.length > 1) {
         const eventsWithData = results.filter(r => Object.keys(r).length > 0).length;
         if (eventsWithData > 1) {

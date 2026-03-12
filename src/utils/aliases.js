@@ -87,6 +87,12 @@ export const ODDS_API_ALIASES = {
   'FC Red Bull Salzburg': 'Red Bull Salzburg',
   'FC Copenhagen': 'Copenhagen',
   'Olympique Marseille': 'Marseille',
+  // Golf — diacritics
+  'Ludvig Aberg': 'Ludvig Åberg',
+  // Tennis ATP — name format differences from The Odds API
+  'Felix Auger Aliassime': 'Felix Auger-Aliassime',
+  'Alex De Minaur': 'Alex de Minaur',
+  'Bia Haddad Maia': 'Beatriz Haddad Maia',
   // NCAAF - additional school mappings
   'Oregon Ducks': 'Oregon',
   'Penn State Nittany Lions': 'Penn State',
