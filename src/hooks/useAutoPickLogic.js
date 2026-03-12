@@ -1,15 +1,14 @@
 // useAutoPickLogic.js
-// Encapsulates both auto-pick effects that were previously in omnifantasy-app.jsx:
+// Encapsulates both auto-pick effects:
 //
 //   1. Timer-expiry auto-pick — fires when `timerExpired` becomes true.
 //      Fetches the current picker's queue; falls back to highest-EP available pick.
 //      Commissioner auto-picks for any member as a failsafe.
 //
-//   2. Immediate queue auto-pick — 5-second countdown triggered when
-//      `currentPick` advances and `autoPickFromQueue` is enabled for the user.
-//
-// Returns { cancelAutoPickCountdown } so the caller can cancel the 5-second
-// countdown (e.g. when the user makes a manual pick).
+//   2. Immediate auto-pick — fires when `currentPick` advances (or on page load)
+//      and `autoPickFromQueue` is enabled for the current user.
+//      Tries queue first; falls back to highest-EP pick if queue is empty.
+//      Picks immediately — no countdown delay.
 
 import { useEffect, useRef } from 'react';
 import { getCurrentPickerFromState, normalizeDraftPicker, wouldBreakSportCoverage } from '../utils/draft';
@@ -31,34 +30,36 @@ export function useAutoPickLogic({
   expectedPoints,
 }) {
   const lastAutoPickKeyRef = useRef(null);
-  const autoPickCountdownRef = useRef(null);
   const prevCurrentPickRef = useRef(null);
 
-  // Refs kept in sync every render so Effect 2's setTimeout callback always
-  // reads the latest values regardless of when currentPick last changed.
-  const draftSettingsRef = useRef(draftSettings);
-  const queueRef = useRef(queue);
-  const currentViewRef = useRef(currentView);
-  const currentUserRef = useRef(currentUser);
-  const supabasePicksRef = useRef(supabasePicks);
-  const selectedLeagueRef = useRef(selectedLeague);
-  const selectedLeagueIdRef = useRef(selectedLeagueId);
-  const makePickDBRef = useRef(makePickDB);
-  const supabaseDraftStateRef = useRef(supabaseDraftState);
+  // Refs kept in sync every render so Effect 2 always reads the latest values.
+  // Effect 2's dep array is intentionally minimal (currentPick/currentRound only)
+  // so it only fires when the pick advances — not on every re-render.
+  const draftSettingsRef       = useRef(draftSettings);
+  const queueRef               = useRef(queue);
+  const currentViewRef         = useRef(currentView);
+  const currentUserRef         = useRef(currentUser);
+  const supabasePicksRef       = useRef(supabasePicks);
+  const selectedLeagueRef      = useRef(selectedLeague);
+  const selectedLeagueIdRef    = useRef(selectedLeagueId);
+  const makePickDBRef          = useRef(makePickDB);
+  const supabaseDraftStateRef  = useRef(supabaseDraftState);
+  const getDraftPoolForSportRef = useRef(getDraftPoolForSport);
+  const expectedPointsRef      = useRef(expectedPoints);
 
-  draftSettingsRef.current = draftSettings;
-  queueRef.current = queue;
-  currentViewRef.current = currentView;
-  currentUserRef.current = currentUser;
-  supabasePicksRef.current = supabasePicks;
-  selectedLeagueRef.current = selectedLeague;
-  selectedLeagueIdRef.current = selectedLeagueId;
-  makePickDBRef.current = makePickDB;
-  supabaseDraftStateRef.current = supabaseDraftState;
+  draftSettingsRef.current       = draftSettings;
+  queueRef.current               = queue;
+  currentViewRef.current         = currentView;
+  currentUserRef.current         = currentUser;
+  supabasePicksRef.current       = supabasePicks;
+  selectedLeagueRef.current      = selectedLeague;
+  selectedLeagueIdRef.current    = selectedLeagueId;
+  makePickDBRef.current          = makePickDB;
+  supabaseDraftStateRef.current  = supabaseDraftState;
+  getDraftPoolForSportRef.current = getDraftPoolForSport;
+  expectedPointsRef.current      = expectedPoints;
 
   // ─── helpers ────────────────────────────────────────────────────────────────
-
-  const getEP = (sport, team) => expectedPoints?.[sport]?.[team] ?? null;
 
   const wouldBreakRequiredSportAvailability = (pickerEmail, sport, team, league, draftSt, picks) =>
     wouldBreakSportCoverage({
@@ -84,6 +85,45 @@ export function useAutoPickLogic({
       return { sport: item.sport, team: item.team };
     }
     return null;
+  };
+
+  // Builds the list of valid candidate picks for a picker, respecting sport
+  // coverage requirements and already-picked teams.
+  const buildCandidates = (pickerEmail, picks, league, draftSt, getDraftPool, epMap) => {
+    const pickerEmailLower = pickerEmail.toLowerCase();
+    const pickerPicks = (picks || []).filter(
+      p => p.picker_email?.toLowerCase() === pickerEmailLower
+    );
+    const sportRequirementEnabled = draftSt?.draftEverySportRequired !== false;
+    const missingRequiredSports = (league?.sports || []).filter(
+      sport => !pickerPicks.some(p => p.sport === sport)
+    );
+    const candidateSports = (sportRequirementEnabled && missingRequiredSports.length > 0)
+      ? missingRequiredSports
+      : (league?.sports || []);
+
+    const pickedSet = new Set((picks || []).map(p => `${p.sport}::${p.team_name}`));
+    const candidates = [];
+    for (const sport of candidateSports) {
+      const teams = getDraftPool(sport) || [];
+      for (const team of teams) {
+        if (pickedSet.has(`${sport}::${team}`)) continue;
+        if (wouldBreakSportCoverage({
+          sportRequirementEnabled,
+          leagueSports: league?.sports,
+          pool: getDraftPool(sport),
+          draftEmails: (draftSt?.draftOrder || [])
+            .map(m => normalizeDraftPicker(m)?.email?.toLowerCase())
+            .filter(Boolean),
+          picks,
+          pickerEmail,
+          sport,
+          team,
+        })) continue;
+        candidates.push({ sport, team, ep: epMap?.[sport]?.[team] ?? null });
+      }
+    }
+    return candidates;
   };
 
   // ─── Effect 1: Timer-expiry auto-pick ───────────────────────────────────────
@@ -122,29 +162,10 @@ export function useAutoPickLogic({
       const autoPickKey = `${selectedLeague.id}:${effectiveState.currentPick}:${supabaseDraftState.pickStartedAt || ''}`;
       if (lastAutoPickKeyRef.current === autoPickKey) return;
 
-      const pickerEmailLower = currentPicker.email.toLowerCase();
-      const pickerPicks = (supabasePicks || []).filter(
-        p => p.picker_email?.toLowerCase() === pickerEmailLower
+      const candidates = buildCandidates(
+        currentPicker.email, supabasePicks, selectedLeague, supabaseDraftState,
+        getDraftPoolForSport, expectedPoints
       );
-
-      const sportRequirementEnabled = supabaseDraftState?.draftEverySportRequired !== false;
-      const missingRequiredSports = (selectedLeague.sports || []).filter(
-        sport => !pickerPicks.some(p => p.sport === sport)
-      );
-      const candidateSports = (sportRequirementEnabled && missingRequiredSports.length > 0)
-        ? missingRequiredSports
-        : (selectedLeague.sports || []);
-
-      const pickedSet = new Set((supabasePicks || []).map(p => `${p.sport}::${p.team_name}`));
-      const candidates = [];
-      for (const sport of candidateSports) {
-        const teams = getDraftPoolForSport(sport) || [];
-        for (const team of teams) {
-          if (pickedSet.has(`${sport}::${team}`)) continue;
-          if (wouldBreakRequiredSportAvailability(currentPicker.email, sport, team, selectedLeague, supabaseDraftState, supabasePicks)) continue;
-          candidates.push({ sport, team, ep: getEP(sport, team) });
-        }
-      }
 
       if (candidates.length === 0) {
         setTimerExpired(false);
@@ -178,9 +199,8 @@ export function useAutoPickLogic({
           team: chosen.team,
           team_name: chosen.team,
         });
-        setTimeout(() => sendOtcEmail(selectedLeagueId), 1500); // delay so draft_state.current_pick is committed
+        setTimeout(() => sendOtcEmail(selectedLeagueId), 1500);
       } catch {
-        // Clear the key so a retry attempt can fire on the next timerExpired cycle
         lastAutoPickKeyRef.current = null;
       } finally {
         setTimerExpired(false);
@@ -201,80 +221,78 @@ export function useAutoPickLogic({
     expectedPoints,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Effect 2: Immediate queue auto-pick (5-second countdown) ────────────────
-  // Dependency array is intentionally minimal (currentPick/currentRound only) so
-  // the effect only fires when the pick advances. All other values are read via
-  // refs so the effect and its setTimeout callback always see the latest state
-  // without needing to be in the dep array (avoiding spurious re-triggers).
+  // ─── Effect 2: Immediate auto-pick when it's the user's turn ─────────────────
+  // Fires when currentPick changes (real-time subscription) AND on page load
+  // (prevCurrentPickRef starts null so null !== currentPick is always true).
+  // All values read via refs so the effect never needs to re-subscribe just
+  // because league/queue/settings changed — only currentPick/currentRound matter.
   useEffect(() => {
-    const currentPick = supabaseDraftStateRef.current?.currentPick;
+    const runImmediateAutoPick = async () => {
+      const currentPick = supabaseDraftStateRef.current?.currentPick;
 
-    // Only trigger when currentPick actually advances (not on initial mount)
-    if (prevCurrentPickRef.current !== null && prevCurrentPickRef.current !== currentPick) {
-      clearTimeout(autoPickCountdownRef.current);
+      // Skip if this is a re-run for the same pick number (no-op guard).
+      // null !== currentPick is true on mount, so the page-load case fires.
+      if (prevCurrentPickRef.current === currentPick) return;
+      prevCurrentPickRef.current = currentPick ?? null;
 
       const draftState = supabaseDraftStateRef.current;
-      const user = currentUserRef.current;
+      const user       = currentUserRef.current;
 
-      const shouldFire = (
-        currentViewRef.current === 'draft' &&
-        draftState &&
-        user &&
-        draftSettingsRef.current?.autoPickFromQueue &&
-        !draftState.isDraftComplete
+      if (
+        currentViewRef.current !== 'draft' ||
+        !draftState ||
+        !user ||
+        !draftSettingsRef.current?.autoPickFromQueue ||
+        draftState.isDraftComplete
+      ) return;
+
+      const draftOrder = (draftState.draftOrder || [])
+        .map(e => normalizeDraftPicker(e)).filter(Boolean);
+      const picker = getCurrentPickerFromState({ ...draftState, draftOrder });
+      if (picker?.email?.toLowerCase() !== user.email?.toLowerCase()) return;
+
+      const autoPickKey = `${selectedLeagueIdRef.current}:${draftState.currentPick}:${draftState.pickStartedAt || ''}`;
+      if (lastAutoPickKeyRef.current === autoPickKey) return;
+
+      const picks  = supabasePicksRef.current;
+      const league = selectedLeagueRef.current;
+
+      const candidates = buildCandidates(
+        user.email, picks, league, draftState,
+        getDraftPoolForSportRef.current, expectedPointsRef.current
       );
+      if (candidates.length === 0) return;
 
-      if (shouldFire) {
-        const draftOrder = (draftState.draftOrder || [])
-          .map(e => normalizeDraftPicker(e)).filter(Boolean);
-        const picker = getCurrentPickerFromState({ ...draftState, draftOrder });
-        const isMyTurn = picker?.email?.toLowerCase() === user.email?.toLowerCase();
-
-        if (isMyTurn) {
-          const queuePick = getQueueAutopick(queueRef.current, supabasePicksRef.current, selectedLeagueRef.current, draftState, user.email);
-          if (queuePick) {
-            autoPickCountdownRef.current = setTimeout(async () => {
-              // Re-read all refs at fire time — 5s may have passed and state may have changed
-              const latestDraftState = supabaseDraftStateRef.current;
-              const latestUser = currentUserRef.current;
-              const finalPick = getQueueAutopick(queueRef.current, supabasePicksRef.current, selectedLeagueRef.current, latestDraftState, latestUser?.email);
-              if (!finalPick || currentViewRef.current !== 'draft') return;
-              const effectivePick = latestDraftState?.currentPick || ((supabasePicksRef.current?.length || 0) + 1);
-              const effectiveRound = latestDraftState?.currentRound || 1;
-              try {
-                await makePickDBRef.current({
-                  league_id: selectedLeagueIdRef.current,
-                  pick_number: effectivePick,
-                  round: effectiveRound,
-                  picker_email: latestUser.email,
-                  picker_name: latestUser.user_metadata?.display_name || latestUser.email.split('@')[0] || 'Unknown',
-                  sport: finalPick.sport,
-                  team: finalPick.team,
-                  team_name: finalPick.team,
-                });
-                setTimeout(() => sendOtcEmail(selectedLeagueIdRef.current), 1500); // delay so draft_state.current_pick is committed
-              } catch {
-                // Pick failed (race condition or validation) — ignore
-              }
-            }, 5000);
-          }
-        }
+      // Try queue first, fall back to best EP
+      let chosen = getQueueAutopick(queueRef.current, picks, league, draftState, user.email);
+      if (!chosen) {
+        const withEp = candidates.filter(c => c.ep != null);
+        chosen = withEp.length > 0
+          ? withEp.sort((a, b) => b.ep - a.ep)[0]
+          : candidates[0];
       }
-    }
 
-    prevCurrentPickRef.current = currentPick ?? null;
-
-    return () => {
-      // Cleanup on unmount or re-run, but don't clear the timer ref here —
-      // it's cleared explicitly when currentPick changes.
+      try {
+        lastAutoPickKeyRef.current = autoPickKey;
+        await makePickDBRef.current({
+          league_id: selectedLeagueIdRef.current,
+          pick_number: draftState.currentPick,
+          round: draftState.currentRound || 1,
+          picker_email: user.email,
+          picker_name: user.user_metadata?.display_name || user.email.split('@')[0] || 'Unknown',
+          sport: chosen.sport,
+          team: chosen.team,
+          team_name: chosen.team,
+        });
+        setTimeout(() => sendOtcEmail(selectedLeagueIdRef.current), 1500);
+      } catch {
+        lastAutoPickKeyRef.current = null;
+      }
     };
+
+    runImmediateAutoPick();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabaseDraftState?.currentPick, supabaseDraftState?.currentRound]);
 
-  const cancelAutoPickCountdown = () => {
-    clearTimeout(autoPickCountdownRef.current);
-    autoPickCountdownRef.current = null;
-  };
-
-  return { cancelAutoPickCountdown };
+  return {};
 }

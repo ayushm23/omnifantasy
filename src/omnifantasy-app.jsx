@@ -411,7 +411,7 @@ const OmnifantasyApp = () => {
       team,
     });
 
-  const { cancelAutoPickCountdown } = useAutoPickLogic({
+  useAutoPickLogic({
     currentView,
     timerExpired,
     setTimerExpired,
