@@ -1,0 +1,2 @@
+[functions.send-league-invite]
+verify_jwt = false
