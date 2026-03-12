@@ -54,10 +54,10 @@ Deno.serve(async (req) => {
       members.map(async (member) => {
         const name = member.name || member.email.split('@')[0];
         const subject = `The draft for ${league.name} has started!`;
-        const text = `Hi ${name},\n\nThe draft for ${league.name} has started on OmniFantasy. Head over now to make your picks!\n\nDraft now: ${link}\n\nOmniFantasy`;
+        const text = `Hi ${name},\n\nThe draft for ${league.name} has started on Omnifantasy. Head over now to make your picks!\n\nDraft now: ${link}\n\nOmnifantasy`;
         const html = `
           <p>Hi <strong>${escapeHtml(name)}</strong>,</p>
-          <p>The draft for <strong>${escapeHtml(league.name)}</strong> has started on OmniFantasy. Head over now to make your picks!</p>
+          <p>The draft for <strong>${escapeHtml(league.name)}</strong> has started on Omnifantasy. Head over now to make your picks!</p>
           <p>
             <a href="${escapeHtml(link)}"
                style="background:#16a34a;color:white;padding:10px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin:8px 0;font-weight:600;">

@@ -871,8 +871,8 @@ const OmnifantasyApp = () => {
         <div className="bg-slate-800/60 backdrop-blur-sm border-b border-slate-700 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="OmniFantasy" className="h-9 w-auto" />
-              <h1 className="text-2xl font-bold text-white">OmniFantasy</h1>
+              <img src="/logo.png" alt="Omnifantasy" className="h-9 w-auto" />
+              <h1 className="text-2xl font-bold text-white">Omnifantasy</h1>
             </div>
           </div>
         </div>
@@ -1093,8 +1093,8 @@ const OmnifantasyApp = () => {
           <div className="max-w-7xl mx-auto px-3 md:px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <img src="/logo.png" alt="OmniFantasy" className="h-9 w-auto" />
-                <h1 className="text-2xl font-bold text-white">OmniFantasy</h1>
+                <img src="/logo.png" alt="Omnifantasy" className="h-9 w-auto" />
+                <h1 className="text-2xl font-bold text-white">Omnifantasy</h1>
               </div>
               {/* Desktop nav */}
               <div className="hidden md:flex items-center gap-4">

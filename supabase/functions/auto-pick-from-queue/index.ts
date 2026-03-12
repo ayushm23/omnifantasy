@@ -207,10 +207,10 @@ async function sendOtcEmailForNextPick(
   const link   = appUrl ? `${appUrl}?draft=${leagueId}` : '';
   const name   = nextPicker.name || nextPicker.email.split('@')[0];
   const subject = `You're on the clock in ${leagueName}!`;
-  const text    = `Hi ${name},\n\nIt's your turn to draft in ${leagueName} on OmniFantasy!\n\nDraft now: ${link}\n\nOmniFantasy`;
+  const text    = `Hi ${name},\n\nIt's your turn to draft in ${leagueName} on Omnifantasy!\n\nDraft now: ${link}\n\nOmnifantasy`;
   const html    = `
     <p>Hi <strong>${escapeHtml(name)}</strong>,</p>
-    <p>It's your turn to draft in <strong>${escapeHtml(leagueName)}</strong> on OmniFantasy!</p>
+    <p>It's your turn to draft in <strong>${escapeHtml(leagueName)}</strong> on Omnifantasy!</p>
     <p>
       <a href="${escapeHtml(link)}"
          style="background:#16a34a;color:white;padding:10px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin:8px 0;font-weight:600;">

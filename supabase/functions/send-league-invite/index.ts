@@ -40,20 +40,20 @@ Deno.serve(async (req) => {
     ) ?? false;
 
     const subject = isExistingUser
-      ? `You've been invited to join ${leagueName} on OmniFantasy`
-      : `You're invited to OmniFantasy: ${leagueName}`;
+      ? `You've been invited to join ${leagueName} on Omnifantasy`
+      : `You're invited to Omnifantasy: ${leagueName}`;
 
     const bodyText = isExistingUser
-      ? `Hi,\n\n${commissionerName || 'Your friend'} has invited you to join their fantasy league "${leagueName}" on OmniFantasy.\n\nLog in at ${appUrl} to see and accept your invite.\n\nOmniFantasy`
-      : `Hi,\n\n${commissionerName || 'Your friend'} has invited you to join their fantasy league "${leagueName}" on OmniFantasy — a multi-sport fantasy draft platform.\n\nCreate your free account at ${appUrl} using this email address (${memberEmail}), then accept your invite on the home page.\n\nOmniFantasy`;
+      ? `Hi,\n\n${commissionerName || 'Your friend'} has invited you to join their fantasy league "${leagueName}" on Omnifantasy.\n\nLog in at ${appUrl} to see and accept your invite.\n\nOmnifantasy`
+      : `Hi,\n\n${commissionerName || 'Your friend'} has invited you to join their fantasy league "${leagueName}" on Omnifantasy — a multi-sport fantasy draft platform.\n\nCreate your free account at ${appUrl} using this email address (${memberEmail}), then accept your invite on the home page.\n\nOmnifantasy`;
 
     const bodyHtml = isExistingUser
       ? `<p>Hi,</p>
-         <p><strong>${escapeHtml(commissionerName || 'Your friend')}</strong> has invited you to join their fantasy league <strong>"${escapeHtml(leagueName)}"</strong> on OmniFantasy.</p>
+         <p><strong>${escapeHtml(commissionerName || 'Your friend')}</strong> has invited you to join their fantasy league <strong>"${escapeHtml(leagueName)}"</strong> on Omnifantasy.</p>
          <p><a href="${escapeHtml(appUrl)}" style="background:#16a34a;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin:8px 0;">Accept Invite</a></p>
          <p style="color:#6b7280;font-size:14px;">Or visit: ${escapeHtml(appUrl)}</p>`
       : `<p>Hi,</p>
-         <p><strong>${escapeHtml(commissionerName || 'Your friend')}</strong> has invited you to join their fantasy league <strong>"${escapeHtml(leagueName)}"</strong> on OmniFantasy — a multi-sport fantasy draft platform.</p>
+         <p><strong>${escapeHtml(commissionerName || 'Your friend')}</strong> has invited you to join their fantasy league <strong>"${escapeHtml(leagueName)}"</strong> on Omnifantasy — a multi-sport fantasy draft platform.</p>
          <p>Create your free account at the link below using this email address (<strong>${escapeHtml(memberEmail)}</strong>), then accept your invite on the home page.</p>
          <p><a href="${escapeHtml(appUrl)}" style="background:#16a34a;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin:8px 0;">Create Account & Accept Invite</a></p>
          <p style="color:#6b7280;font-size:14px;">Or visit: ${escapeHtml(appUrl)}</p>`;
@@ -100,7 +100,7 @@ async function sendEmail({ to, subject, text, html }: {
   });
 
   await transporter.sendMail({
-    from: `"OmniFantasy" <${from}>`,
+    from: `"Omnifantasy" <${from}>`,
     to,
     subject,
     text,

@@ -91,10 +91,10 @@ Deno.serve(async (req) => {
     const name    = picker.name || picker.email.split('@')[0];
     const link    = appUrl ? `${appUrl}?draft=${leagueId}` : '';
     const subject = `You're on the clock in ${league.name}!`;
-    const text    = `Hi ${name},\n\nIt's your turn to draft in ${league.name} on OmniFantasy!${deadlineText}\n\nDraft now: ${link}\n\nOmniFantasy`;
+    const text    = `Hi ${name},\n\nIt's your turn to draft in ${league.name} on Omnifantasy!${deadlineText}\n\nDraft now: ${link}\n\nOmnifantasy`;
     const html    = `
       <p>Hi <strong>${escapeHtml(name)}</strong>,</p>
-      <p>It's your turn to draft in <strong>${escapeHtml(league.name)}</strong> on OmniFantasy!</p>
+      <p>It's your turn to draft in <strong>${escapeHtml(league.name)}</strong> on Omnifantasy!</p>
       ${deadlineHtml}
       <p>
         <a href="${escapeHtml(link)}"

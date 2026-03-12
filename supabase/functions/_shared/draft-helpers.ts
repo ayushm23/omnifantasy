@@ -175,7 +175,7 @@ export async function sendEmail({
   });
 
   await transporter.sendMail({
-    from: `"OmniFantasy" <${from}>`,
+    from: `"Omnifantasy" <${from}>`,
     to,
     subject,
     text,

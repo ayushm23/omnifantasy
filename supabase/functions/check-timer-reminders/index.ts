@@ -117,17 +117,17 @@ Deno.serve(async (req) => {
       const text = [
         `Hi ${name},`,
         ``,
-        `You have about ${timeStr} left to make your pick in ${league.name} on OmniFantasy.`,
+        `You have about ${timeStr} left to make your pick in ${league.name} on Omnifantasy.`,
         `If the timer runs out, a pick will be made automatically for you.`,
         ``,
         `Draft now: ${appUrl}`,
         ``,
-        `OmniFantasy`,
+        `Omnifantasy`,
       ].join('\n');
       const html = `
         <p>Hi <strong>${escapeHtml(name)}</strong>,</p>
         <p>You have about <strong>${escapeHtml(timeStr)}</strong> left to make your pick in
-           <strong>${escapeHtml(league.name)}</strong> on OmniFantasy.</p>
+           <strong>${escapeHtml(league.name)}</strong> on Omnifantasy.</p>
         <p style="color:#6b7280;">If the timer runs out, a pick will be made automatically for you.</p>
         <p>
           <a href="${escapeHtml(appUrl)}"
