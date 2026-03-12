@@ -52,7 +52,91 @@ const POPUP_TABS = [
   { id: 'news', label: 'News' },
 ];
 
-const RESULT_META = {
+// Generic result styling (colors/bg used across all sports)
+const RESULT_STYLE = {
+  champion:       { color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30',   icon: '🏆' },
+  runner_up:      { color: 'text-slate-200', bg: 'bg-slate-700/40 border-slate-600/40',   icon: '🥈' },
+  semifinalist:   { color: 'text-blue-300',  bg: 'bg-blue-500/10 border-blue-500/30',     icon: '4️⃣' },
+  quarterfinalist:{ color: 'text-slate-300', bg: 'bg-slate-700/30 border-slate-600/30',   icon: '8️⃣' },
+  t9_t16:         { color: 'text-slate-400', bg: 'bg-slate-700/20 border-slate-600/20',   icon: '📍' },
+  r16:            { color: 'text-slate-400', bg: 'bg-slate-700/20 border-slate-600/20',   icon: '📍' },
+  none:           { color: 'text-slate-500', bg: 'bg-slate-800/40 border-slate-700/20',   icon: '—'  },
+};
+
+// Sport-specific playoff round labels for completed seasons
+const SPORT_RESULT_LABELS = {
+  NFL: {
+    champion:        'Won the Super Bowl',
+    runner_up:       'Lost in the Super Bowl',
+    semifinalist:    'Lost in the Conference Championship',
+    quarterfinalist: 'Lost in the Divisional Round',
+    none:            'Missed Playoffs / Lost in Wild Card Round',
+  },
+  NBA: {
+    champion:        'Won the NBA Finals',
+    runner_up:       'Lost in the NBA Finals',
+    semifinalist:    'Lost in the Conference Finals',
+    quarterfinalist: 'Lost in the Conference Semifinals',
+    none:            'Missed Playoffs / Lost in First Round',
+  },
+  MLB: {
+    champion:        'Won the World Series',
+    runner_up:       'Lost in the World Series',
+    semifinalist:    'Lost in the Championship Series',
+    quarterfinalist: 'Lost in the Division Series',
+    none:            'Missed Playoffs / Lost in Wild Card Round',
+  },
+  NHL: {
+    champion:        'Won the Stanley Cup',
+    runner_up:       'Lost in the Stanley Cup Finals',
+    semifinalist:    'Lost in the Conference Finals',
+    quarterfinalist: 'Lost in the Conference Semifinals',
+    none:            'Missed Playoffs / Lost in First Round',
+  },
+  NCAAF: {
+    champion:        'Won the National Championship',
+    runner_up:       'Lost in the Championship Game',
+    semifinalist:    'Lost in the CFP Semifinal',
+    quarterfinalist: 'Lost in the CFP Quarterfinal',
+    none:            'Did Not Qualify / Eliminated Early',
+  },
+  NCAAMB: {
+    champion:        'Won the National Championship',
+    runner_up:       'Lost in the Championship Game',
+    semifinalist:    'Lost in the Final Four',
+    quarterfinalist: 'Lost in the Elite Eight',
+    none:            'Eliminated in Round of 64 / 32',
+  },
+  UCL: {
+    champion:        'Won the Champions League',
+    runner_up:       'Lost in the Final',
+    semifinalist:    'Lost in the Semifinals',
+    quarterfinalist: 'Lost in the Quarterfinals',
+    none:            'Eliminated in Group Stage / Round of 16',
+  },
+  Euro: {
+    champion:        'Won the Euros',
+    runner_up:       'Lost in the Final',
+    semifinalist:    'Lost in the Semifinals',
+    quarterfinalist: 'Lost in the Quarterfinals',
+    none:            'Eliminated Early',
+  },
+  WorldCup: {
+    champion:        'Won the World Cup',
+    runner_up:       'Lost in the Final',
+    semifinalist:    'Lost in the Semifinals',
+    quarterfinalist: 'Lost in the Quarterfinals',
+    none:            'Eliminated Early',
+  },
+};
+
+// Resolve human-readable result label for a sport + result key
+function getResultLabel(sport, resultKey) {
+  return SPORT_RESULT_LABELS[sport]?.[resultKey] ?? resultKey;
+}
+
+// For Golf/Tennis multi-event per-event results (generic labels are fine here)
+const EVENT_RESULT_META = {
   champion:       { label: 'Champion',       color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/30',   icon: '🏆' },
   runner_up:      { label: 'Runner-up',      color: 'text-slate-200',   bg: 'bg-slate-700/40 border-slate-600/40',   icon: '🥈' },
   semifinalist:   { label: 'Semifinalist',   color: 'text-blue-300',    bg: 'bg-blue-500/10 border-blue-500/30',     icon: '4️⃣' },
@@ -66,7 +150,10 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
   const [activeTab, setActiveTab] = useState('ep');
   const [activeFrame, setActiveFrame] = useState('1W');
   const seasons = SPORT_SEASONS[sport];
-  const [selectedSeason, setSelectedSeason] = useState(() => seasons?.current ?? null);
+  // Default to current season if it has started, otherwise default to previous
+  const [selectedSeason, setSelectedSeason] = useState(
+    () => (seasons?.seasonStarted ? seasons.current : seasons?.previous) ?? null
+  );
   const { history, loading: epLoading } = useEPHistory(sport, team);
   const { news, hasTeamNews, loading: newsLoading, newsError } = useTeamNews(sport, team);
   const { performance, loading: perfLoading } = useTeamPerformance(sport, team);
@@ -228,16 +315,18 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
               {/* Season selector */}
               {seasons && (
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setSelectedSeason(seasons.current)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                      selectedSeason === seasons.current
-                        ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
-                        : 'bg-slate-700/40 border-slate-600/40 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    {seasons.currentLabel}
-                  </button>
+                  {seasons.seasonStarted && (
+                    <button
+                      onClick={() => setSelectedSeason(seasons.current)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                        selectedSeason === seasons.current
+                          ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                          : 'bg-slate-700/40 border-slate-600/40 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {seasons.currentLabel}
+                    </button>
+                  )}
                   <button
                     onClick={() => setSelectedSeason(seasons.previous)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
@@ -307,100 +396,110 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
                 <p className="text-slate-500 text-xs text-center py-1">No standings data for this season.</p>
               )}
 
-              {/* Divider before final result */}
-              {(record || ['Golf','MensTennis','WomensTennis','F1'].includes(sport)) && (
+              {/* Divider before final result — only when there's a record card AND a result to show */}
+              {(record || ['Golf','MensTennis','WomensTennis'].includes(sport)) &&
+               performance && (performance.type === 'multi' ||
+                 (performance.isComplete && performance.season === selectedSeason)) && (
                 <div className="border-t border-slate-700/50" />
               )}
 
-              {/* Existing: final tournament/playoff result from sport_results */}
-              <div className="space-y-3">
-              {perfLoading ? (
-                <div className="space-y-2">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="h-12 rounded-lg bg-slate-700/30 animate-pulse" />
-                  ))}
-                </div>
-              ) : !performance ? (
-                <p className="text-slate-500 text-sm text-center py-6">No performance data available.</p>
-              ) : performance.type === 'single' ? (
-                <>
-                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                    {performance.isComplete ? `${performance.season} Season Result` : `${performance.season} Season (in progress)`}
-                  </div>
-                  {performance.result === null ? (
-                    <p className="text-slate-400 text-sm">Season is still in progress.</p>
-                  ) : (() => {
-                    const meta = RESULT_META[performance.result] || RESULT_META.none;
-                    return (
-                      <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${meta.bg}`}>
-                        <span className="text-2xl">{meta.icon}</span>
-                        <span className={`text-base font-bold ${meta.color}`}>{meta.label}</span>
+              {/* Final tournament/playoff result from sport_results.
+                  Only shown when the completed season data matches the selected season tab. */}
+              {(() => {
+                // For single-event sports: show result only when this season is complete
+                if (performance?.type === 'single' && performance.isComplete && performance.season === selectedSeason) {
+                  const resultKey = performance.result ?? 'none';
+                  const style = RESULT_STYLE[resultKey] || RESULT_STYLE.none;
+                  const label = getResultLabel(sport, resultKey);
+                  return (
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                        {performance.season} Season Result
                       </div>
-                    );
-                  })()}
-                </>
-              ) : performance.type === 'f1' ? (
-                <>
-                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                    {performance.isComplete ? `${performance.season} Championship Result` : `${performance.season} Championship (in progress)`}
-                  </div>
-                  {performance.position === null ? (
-                    <p className="text-slate-400 text-sm">Driver not found in standings.</p>
-                  ) : (
-                    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
-                      performance.position === 1 ? RESULT_META.champion.bg :
-                      performance.position === 2 ? RESULT_META.runner_up.bg :
-                      performance.position <= 4 ? RESULT_META.semifinalist.bg :
-                      RESULT_META.quarterfinalist.bg
-                    }`}>
-                      <span className="text-2xl">
-                        {performance.position === 1 ? '🏆' : performance.position === 2 ? '🥈' : performance.position === 3 ? '🥉' : '🏎️'}
-                      </span>
-                      <div>
-                        <div className={`text-base font-bold ${
-                          performance.position === 1 ? RESULT_META.champion.color :
-                          performance.position === 2 ? RESULT_META.runner_up.color :
-                          RESULT_META.quarterfinalist.color
-                        }`}>
-                          P{performance.position}
-                        </div>
-                        <div className="text-xs text-slate-500">of {performance.total} drivers</div>
+                      <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${style.bg}`}>
+                        <span className="text-2xl">{style.icon}</span>
+                        <span className={`text-base font-bold ${style.color}`}>{label}</span>
                       </div>
                     </div>
-                  )}
-                </>
-              ) : performance.type === 'multi' ? (
-                <>
-                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                    {performance.season} {performance.sport === 'Golf' ? 'Majors' : 'Grand Slams'}
-                    {!performance.isComplete && <span className="text-slate-500 normal-case font-normal ml-1">(in progress)</span>}
-                  </div>
-                  <div className="space-y-2">
-                    {performance.events.map((ev) => {
-                      const meta = ev.result ? (RESULT_META[ev.result] || RESULT_META.none) : null;
-                      return (
-                        <div
-                          key={ev.name}
-                          className={`flex items-center justify-between px-3 py-2.5 rounded-lg border ${
-                            meta ? meta.bg : 'bg-slate-800/40 border-slate-700/20'
-                          }`}
-                        >
-                          <span className="text-sm font-medium text-slate-200 truncate mr-3">{ev.name}</span>
-                          {ev.result === null ? (
-                            <span className="text-xs text-slate-500 shrink-0">Upcoming</span>
-                          ) : (
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="text-base leading-none">{meta.icon}</span>
-                              <span className={`text-xs font-semibold ${meta.color}`}>{meta.label}</span>
-                            </div>
-                          )}
+                  );
+                }
+
+                // For F1: show final championship result only when complete
+                if (performance?.type === 'f1' && performance.isComplete && performance.season === selectedSeason) {
+                  const pos = performance.position;
+                  const style = pos === 1 ? RESULT_STYLE.champion :
+                                pos === 2 ? RESULT_STYLE.runner_up :
+                                pos <= 4  ? RESULT_STYLE.semifinalist :
+                                            RESULT_STYLE.quarterfinalist;
+                  return (
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                        {performance.season} Championship Result
+                      </div>
+                      {pos === null ? (
+                        <p className="text-slate-400 text-sm">Driver not found in standings.</p>
+                      ) : (
+                        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${style.bg}`}>
+                          <span className="text-2xl">
+                            {pos === 1 ? '🏆' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : '🏎️'}
+                          </span>
+                          <div>
+                            <div className={`text-base font-bold ${style.color}`}>P{pos}</div>
+                            <div className="text-xs text-slate-500">of {performance.total} drivers</div>
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : null}
-              </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // For Golf/Tennis multi-event: always show events for the current data
+                if (performance?.type === 'multi') {
+                  return (
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                        {performance.season} {performance.sport === 'Golf' ? 'Majors' : 'Grand Slams'}
+                        {!performance.isComplete && <span className="text-slate-500 normal-case font-normal ml-1">(in progress)</span>}
+                      </div>
+                      <div className="space-y-2">
+                        {performance.events.map((ev) => {
+                          const meta = ev.result ? (EVENT_RESULT_META[ev.result] || EVENT_RESULT_META.none) : null;
+                          return (
+                            <div
+                              key={ev.name}
+                              className={`flex items-center justify-between px-3 py-2.5 rounded-lg border ${
+                                meta ? meta.bg : 'bg-slate-800/40 border-slate-700/20'
+                              }`}
+                            >
+                              <span className="text-sm font-medium text-slate-200 truncate mr-3">{ev.name}</span>
+                              {ev.result === null ? (
+                                <span className="text-xs text-slate-500 shrink-0">Upcoming</span>
+                              ) : (
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-base leading-none">{meta.icon}</span>
+                                  <span className={`text-xs font-semibold ${meta.color}`}>{meta.label}</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (perfLoading) {
+                  return (
+                    <div className="space-y-2">
+                      {[1, 2].map(i => (
+                        <div key={i} className="h-12 rounded-lg bg-slate-700/30 animate-pulse" />
+                      ))}
+                    </div>
+                  );
+                }
+
+                return null;
+              })()}
             </div>
           )}
 

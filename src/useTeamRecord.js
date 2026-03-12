@@ -28,20 +28,21 @@ const ESPN_STANDINGS_CONFIG = {
 // Current and previous season years per sport.
 // ESPN uses the ending calendar year for multi-year seasons (NBA 2025-26 → year 2026).
 // Update at the start of each new season.
+// seasonStarted: set to true once the first event of the current season has occurred.
 export const SPORT_SEASONS = {
-  NFL:          { current: 2025, previous: 2024, currentLabel: '2025',    previousLabel: '2024' },
-  NBA:          { current: 2026, previous: 2025, currentLabel: '2025-26', previousLabel: '2024-25' },
-  MLB:          { current: 2025, previous: 2024, currentLabel: '2025',    previousLabel: '2024' },
-  NHL:          { current: 2026, previous: 2025, currentLabel: '2025-26', previousLabel: '2024-25' },
-  NCAAF:        { current: 2025, previous: 2024, currentLabel: '2025',    previousLabel: '2024' },
-  NCAAMB:       { current: 2026, previous: 2025, currentLabel: '2025-26', previousLabel: '2024-25' },
-  UCL:          { current: 2026, previous: 2025, currentLabel: '2025-26', previousLabel: '2024-25' },
-  F1:           { current: 2026, previous: 2025, currentLabel: '2026',    previousLabel: '2025' },
-  Golf:         { current: 2026, previous: 2025, currentLabel: '2026',    previousLabel: '2025' },
-  MensTennis:   { current: 2026, previous: 2025, currentLabel: '2026',    previousLabel: '2025' },
-  WomensTennis: { current: 2026, previous: 2025, currentLabel: '2026',    previousLabel: '2025' },
-  Euro:         { current: 2024, previous: 2020, currentLabel: '2024',    previousLabel: '2020' },
-  WorldCup:     { current: 2022, previous: 2018, currentLabel: '2022',    previousLabel: '2018' },
+  NFL:          { current: 2025, previous: 2024, currentLabel: '2025',    previousLabel: '2024',    seasonStarted: true },
+  NBA:          { current: 2026, previous: 2025, currentLabel: '2025-26', previousLabel: '2024-25', seasonStarted: true },
+  MLB:          { current: 2025, previous: 2024, currentLabel: '2025',    previousLabel: '2024',    seasonStarted: true },
+  NHL:          { current: 2026, previous: 2025, currentLabel: '2025-26', previousLabel: '2024-25', seasonStarted: true },
+  NCAAF:        { current: 2025, previous: 2024, currentLabel: '2025',    previousLabel: '2024',    seasonStarted: true },
+  NCAAMB:       { current: 2026, previous: 2025, currentLabel: '2025-26', previousLabel: '2024-25', seasonStarted: true },
+  UCL:          { current: 2026, previous: 2025, currentLabel: '2025-26', previousLabel: '2024-25', seasonStarted: true },
+  F1:           { current: 2026, previous: 2025, currentLabel: '2026',    previousLabel: '2025',    seasonStarted: true },
+  Golf:         { current: 2026, previous: 2025, currentLabel: '2026',    previousLabel: '2025',    seasonStarted: false }, // 2026 Majors start April
+  MensTennis:   { current: 2026, previous: 2025, currentLabel: '2026',    previousLabel: '2025',    seasonStarted: true },  // AO Jan 2026
+  WomensTennis: { current: 2026, previous: 2025, currentLabel: '2026',    previousLabel: '2025',    seasonStarted: true },  // AO Jan 2026
+  Euro:         { current: 2024, previous: 2020, currentLabel: '2024',    previousLabel: '2020',    seasonStarted: true },
+  WorldCup:     { current: 2022, previous: 2018, currentLabel: '2022',    previousLabel: '2018',    seasonStarted: true },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
