@@ -7,7 +7,7 @@ import { useDraftQueue } from './useDraftQueue';
 import { useAutoPickLogic } from './hooks/useAutoPickLogic';
 import { isSportSupported } from './oddsApi';
 import { calculatePickPoints } from './utils/points';
-import { updateLeague, getPickerQueue, updateUserMetadata, sendLeagueInvite, acceptLeagueInvite, declineLeagueInvite, syncMemberName, sendOtcEmail } from './supabaseClient';
+import { updateLeague, getPickerQueue, updateUserMetadata, sendLeagueInvite, acceptLeagueInvite, declineLeagueInvite, syncMemberName, sendOtcEmail, sendDraftStartEmail } from './supabaseClient';
 import {
   AVAILABLE_SPORTS,
   TEAM_POOLS,
@@ -1067,7 +1067,9 @@ const OmnifantasyApp = () => {
       setDraftState(initialDraftState);
       await reloadLeagues();
       setCurrentView('draft');
-      // Notify the first picker — delay so draft_state.current_pick is committed
+      // Notify all members that the draft has started (no OTC preference check)
+      setTimeout(() => sendDraftStartEmail(selectedLeagueId), 2000);
+      // Notify the first picker they're on the clock — delay so draft_state.current_pick is committed
       setTimeout(() => sendOtcEmail(selectedLeagueId), 2000);
     }).catch(error => {
       console.error('Error starting draft:', error);

@@ -17,7 +17,7 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `src/main.jsx` - Entry point; wraps app in ErrorBoundary for render crash recovery
 - `src/omnifantasy-app.jsx` - Main application component: shared state, auth UI, home view, and modal orchestration
 - `src/views/LeagueView.jsx` - League detail page component (tabs: My Roster, Standings, Big Board, Draft Results; default tab: `'my-roster'`)
-- `src/views/DraftView.jsx` - Draft room component (live drafting interface with sport tabs and EP display)
+- `src/views/DraftView.jsx` - Draft room component (live drafting interface with sport tabs and EP display). Has tab bar: **Pick** (draft grid), **Big Board** (all rosters), **Draft Results** (full pick list). Big Board and Draft Results tabs are always visible (not gated on draft completion). Mobile shows toast for locked pick reasons.
 - `src/config/sports.js` - Sports configuration: `AVAILABLE_SPORTS`, `TEAM_POOLS`, `EP_DRIVEN_POOL_SPORTS`, color helpers, `isTournamentYear`
 - `src/utils/draft.js` - Draft helpers: `generateDraftBoard`, `formatPickNumber`, `getPickerIndex`, `normalizeDraftPicker`, `getCurrentPickerFromState`, `compareByEP`, `wouldBreakSportCoverage`, `picksUntilTurn`
 - `src/utils/standings.js` - `generateStandings(league, picks, currentUserEmail, results, previousRankMap)` helper
@@ -36,6 +36,8 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `src/oddsScraper.js` - Data fetcher for sports not on The Odds API (F1, Men's Tennis, Women's Tennis). F1 uses Jolpica API mid-season, all use market-derived preseason odds as fallback.
 - `src/useExpectedPoints.js` - React hook that wraps `oddsApi.js` for component use. Returns `{ expectedPoints, loading, error, refreshExpectedPoints }`. `loading` is exposed as `epLoading` in `omnifantasy-app.jsx` and passed via `AppContext`.
 - `src/useTeamNews.js` - Fetches recent news from ESPN API for a team/sport. Returns `{ news: [], hasTeamNews: bool, loading }`. Searches headlines for team name; falls back to top sport headlines. 10-minute in-memory cache.
+- `src/useTeamPerformance.js` - Hook: `useTeamPerformance(sport, team)` → `{ performance, loading }`. Fetches the most recently completed season's result for a team from `sport_results` DB. For current in-progress seasons, fetches the prior completed season. Returns `{ type: 'single'|'multi'|'f1', season, result, isComplete, ... }`. Used in TeamPopup Performance tab.
+- `src/useTeamRecord.js` - Hook: `useTeamRecord(sport, team, season)` → `{ record, loading, error }`. Fetches live season W-L standings from ESPN standings API or Jolpica (F1). 1-hour localStorage cache. Exports `SPORT_SEASONS` (per-sport `{ current, previous, currentLabel, previousLabel, seasonStarted, currentComplete }`). Returns `{ type: 'team', wins, losses, otLosses, ties, playoffSeed, division }` or `{ type: 'f1', position, points, wins, total }`. Skips Golf/Tennis/Euro/WorldCup (returns null).
 - `database/database-setup.sql` - Complete database schema with RLS policies
 - `database/database-migration-timer.sql` - Migration for `pick_started_at` column (draft timer)
 - `database/database-migration-picker-name.sql` - Migration for `picker_name` column
@@ -50,12 +52,13 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `database/database-migration-league-emoji.sql` - Migration for `league_emoji TEXT DEFAULT '🏆'` column on `leagues`
 - `database/database-migration-member-status.sql` - Migration for `status` column on `league_members` (invite/accept flow)
 - `database/database-migration-draft-reminders.sql` - Migration for `draft_reminders` table (OTC/1h reminder dedup) + `get_user_otc_pref(p_email)` SECURITY DEFINER RPC + commented pg_cron setup
-- `supabase/functions/send-otc-email/index.ts` - Edge Function: emails next picker after each pick (fire-and-forget, 1.5s delay to avoid stale `draft_state`); checks **only** picker's `receive_otc_emails` via `get_user_otc_pref` RPC (league-level `send_otc_emails` is no longer checked by Edge Functions)
+- `supabase/functions/send-draft-start-email/index.ts` - Edge Function: emails **all accepted members** when a draft starts (fire-and-forget, no OTC preference check); link: `?draft={leagueId}`; called 2s after `startDraftDB` resolves via `sendDraftStartEmail(leagueId)` in `supabaseClient.js`
+- `supabase/functions/send-otc-email/index.ts` - Edge Function: emails next picker after each pick (fire-and-forget, 1.5s delay to avoid stale `draft_state`); checks **only** picker's `receive_otc_emails` via `get_user_otc_pref` RPC (league-level `send_otc_emails` is no longer checked by Edge Functions); link: `?draft={leagueId}`
 - `supabase/functions/check-timer-reminders/index.ts` - Edge Function: cron job (every 15 min); sends "1 hour left" reminder to pickers whose timer is within 1h of expiry; deduplicates via `draft_reminders` table; requires `APP_URL` secret
 - `supabase/functions/_shared/draft-helpers.ts` - Shared Deno module: `getPickerIndex`, `normalizeDraftPicker`, `timerStringToMs`, `computeTimeRemaining` (pause-aware), `sendEmail`, `escapeHtml`
 - `src/useDraftQueue.js` - React hook for managing a user's personal draft queue and per-league draft settings. Returns `{ queue, settings, loading, error, addItem, removeItem, moveItem, reorderAll, clearAll, updateSettings, reload }`. Mutations use optimistic state updates with snapshot+restore rollback on DB failure; `error` is set on failure and cleared on the next mutation attempt. `reorderAll(reorderedItems)` bulk-reorders the queue optimistically and calls `reorderQueue` in `supabaseClient.js`.
 - `src/useEPHistory.js` - React hook: `useEPHistory(sportCode, teamName)` → `{ history: [{date, ep}], loading }`. Fetches EP trend data for a team from the `ep_history` table.
-- `src/components/TeamPopup.jsx` - Modal popup showing current EP, EP trend chart (Recharts LineChart), and recent news for a team. Time frame selector (1W/1M/3M/All) for chart. Opens when any team name is clicked in DraftView or LeagueView. Props: `{ sport, team, currentEP, onClose }`.
+- `src/components/TeamPopup.jsx` - Modal popup with 3 tabs: **EP Trend** (Recharts LineChart, 1W/1M/3M/All time frame selector), **Performance** (live season record from `useTeamRecord` + completed season result from `useTeamPerformance`; season selector for current/previous year; sport-specific playoff labels e.g. "Won the Super Bowl", "Lost in the Conference Finals"; Live badge for in-progress seasons), **News** (ESPN headlines). Opens when any team name is clicked in DraftView or LeagueView. Props: `{ sport, team, currentEP, onClose }`.
 - `src/components/SportBadge.jsx` - Sport code/name badge with color styling. Props: `sport`, `size` ('sm'|'md'|'pill'), `className`
 - `src/components/TabButton.jsx` - Tab navigation button with underline indicator. Props: `label`, `isActive`, `onClick`
 - `src/components/EmptyState.jsx` - Centered placeholder with icon, title, description
@@ -344,7 +347,7 @@ Notes:
 - **Timer Pause Window**: `timer_pause_start_hour` / `timer_pause_end_hour` on `leagues` (default 0–8, i.e. midnight–8am); configurable per league
 - **Third Round Reversal**: `third_round_reversal` on `draft_state` — snake reverses at rounds 2+3 then continues alternating from round 4
 - **Draft Every Sport Required**: `draft_every_sport_required` on `draft_state` — forces picks to cover all league sports
-- **Send OTC Emails**: `send_otc_emails` on `leagues` — UI toggle still stored in DB but Edge Functions no longer gate on it; per-user `receive_otc_emails` in `user_metadata` is the sole control. First picker is notified 2s after `startDraft()` via `sendOtcEmail()` in `omnifantasy-app.jsx`.
+- **Send OTC Emails**: `send_otc_emails` on `leagues` — UI toggle still stored in DB but Edge Functions no longer gate on it; per-user `receive_otc_emails` in `user_metadata` is the sole control. **Defaults to ON** (opt-out model): `currentUser?.user_metadata?.receive_otc_emails !== false`. First picker is notified 2s after `startDraft()` via `sendOtcEmail()` in `omnifantasy-app.jsx`.
 
 ### Draft Confirmation Modal
 - `showStartDraftConfirmation` state controls visibility
@@ -621,7 +624,7 @@ These were previously deferred and are now shipped:
 - **Big Board compact cards** — Tighter padding, thinner border, responsive column grid (2/3/4/5 cols by breakpoint)
 - **API Football removed** — UCL fallback via API Football was removed; UCL uses The Odds API exclusively
 - **2026 preseason odds** — `F1_PRESEASON_ODDS`, `ATP_ODDS`, `WTA_ODDS` in `oddsScraper.js` updated for 2026 season; F1 pool includes Liam Lawson and Kimi Antonelli
-- **EP_METHODOLOGY.md** — Standalone reference doc explaining EP calculation, data sources, caching, and API budget
+- **docs/ folder** — `docs/EP_METHODOLOGY.md` (EP calculation, data sources, caching, API budget) and `docs/ARCHITECTURE.md` (high-level system architecture). Moved from project root March 2026.
 - **Database folder** — All SQL files organized under `database/` subfolder
 - **League invite/accept flow** — `league_members.status` (pending/accepted/declined); invite emails via Edge Function; Accept/Decline on home cards; member management panel in LeagueView; draft start blocked until all members accepted
 - **OTC email improvements** — Edge Functions no longer gate on `leagues.send_otc_emails`; per-user `receive_otc_emails` is sole control; first picker notified 2s after draft starts; `sendOtcEmail` calls use 1.5s delay to avoid stale `draft_state` race condition
@@ -634,3 +637,12 @@ These were previously deferred and are now shipped:
 - **Start Draft confirmation modal enhanced** — Shows full settings review: member count, round count, sports (with color badges), format, draft order type, sport coverage flag, pick timer + pause window, full manual draft order if set. Scrollable.
 - **Member name sync on add** — `addLeagueMember` and `createLeague` look up any existing `league_members` row for that email to populate `name` immediately, rather than waiting for the user's next login.
 - **Roll Back Draft in mobile hamburger** — Commissioner can access Roll Back Draft on mobile via hamburger menu in DraftView (was hidden below `sm` breakpoint).
+- **TeamPopup Performance tab** — New 3rd tab in TeamPopup. Shows live W-L season record (ESPN standings API, 1h localStorage cache) and completed season result (sport_results DB). Season selector for current/previous year; "Live" badge for in-progress seasons; sport-specific playoff labels per sport (e.g. NFL → "Won the Super Bowl", NBA → "Lost in the Conference Finals"). Golf tab shows seasonStarted gate. Uses `useTeamRecord` + `useTeamPerformance` hooks.
+- **TeamPopup tab restructure** — Now 3 tabs: EP Trend | Performance | News (was 2: EP Trend | News). Tab `id: 'ep'|'performance'|'news'`.
+- **DraftView Big Board + Draft Results tabs** — DraftView tab bar now has Pick | Big Board | Draft Results. Both always visible (not gated on draft completion). State: `activeDraftTab` (`'pick'|'big-board'|'draft-results'`).
+- **Auto-remove queue items when drafted** — When any pick is made (by anyone), matching queue items for that sport+team are automatically removed from all users' queues. Handled in `omnifantasy-app.jsx` via a picks effect.
+- **Mobile locked-pick toast** — Tapping a locked row on mobile shows a toast explaining the lock reason (sport already have enough picks, coverage lock, etc.) via a dedicated tappable button on each locked row. No-op on desktop (tooltip handles it).
+- **OTC emails default ON** — `receiveOtcEmails` now defaults to `true` (opt-out model). Reads as `currentUser?.user_metadata?.receive_otc_emails !== false`. Previously opt-in (defaulted false).
+- **Chat unread badge color** — Changed from green to red.
+- **Chat unread count localStorage** — `lastReadAt` persisted to localStorage so unread count survives page refresh.
+- **docs/ folder** — `EP_METHODOLOGY.md` and `ARCHITECTURE.md` moved from project root to `docs/` subfolder.

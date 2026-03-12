@@ -682,6 +682,21 @@ export const sendOtcEmail = async (leagueId) => {
   }
 };
 
+// Send a "draft started" email to ALL accepted members (fire-and-forget, no OTC preference check).
+export const sendDraftStartEmail = async (leagueId) => {
+  try {
+    const appUrl = window.location.origin;
+    console.log('sendDraftStartEmail: invoking for league', leagueId);
+    const { data, error } = await supabase.functions.invoke('send-draft-start-email', {
+      body: { leagueId, appUrl },
+    });
+    if (error) console.warn('sendDraftStartEmail: function error', error);
+    else console.log('sendDraftStartEmail: response', data);
+  } catch (e) {
+    console.warn('sendDraftStartEmail: failed', e);
+  }
+};
+
 // Send a league invite email via the Edge Function (fire-and-forget).
 // Does NOT throw — caller should not block on this.
 export const sendLeagueInvite = async (memberEmail, leagueName, commissionerName) => {
