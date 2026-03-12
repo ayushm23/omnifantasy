@@ -346,8 +346,16 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
               )}
               {!recordLoading && record?.type === 'team' && (
                 <div className="bg-slate-700/30 border border-slate-600/30 rounded-xl px-4 py-3 space-y-1.5">
-                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
-                    {record.division || 'Season Record'}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                      {record.division || 'Season Record'}
+                    </div>
+                    {selectedSeason === seasons?.current && !performance?.isComplete && (
+                      <span className="flex items-center gap-1 text-xs font-semibold text-green-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+                        Live
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-4 flex-wrap">
                     {record.wins !== null && record.losses !== null && (
@@ -375,7 +383,15 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
               )}
               {!recordLoading && record?.type === 'f1' && (
                 <div className="bg-slate-700/30 border border-slate-600/30 rounded-xl px-4 py-3">
-                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Championship Standings</div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Championship Standings</div>
+                    {selectedSeason === seasons?.current && !performance?.isComplete && (
+                      <span className="flex items-center gap-1 text-xs font-semibold text-green-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+                        Live
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-4 flex-wrap">
                     <div>
                       <span className="text-xl font-bold text-white">P{record.position}</span>
@@ -396,18 +412,18 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
                 <p className="text-slate-500 text-xs text-center py-1">No standings data for this season.</p>
               )}
 
-              {/* Divider before final result — only when there's a record card AND a result to show */}
+              {/* Divider before final result */}
               {(record || ['Golf','MensTennis','WomensTennis'].includes(sport)) &&
-               performance && (performance.type === 'multi' ||
-                 (performance.isComplete && performance.season === selectedSeason)) && (
+               performance && (performance.type === 'multi' || performance.isComplete) && (
                 <div className="border-t border-slate-700/50" />
               )}
 
               {/* Final tournament/playoff result from sport_results.
-                  Only shown when the completed season data matches the selected season tab. */}
+                  Shows the most recently completed season result.
+                  Both season tabs show this — the label clarifies which season it refers to. */}
               {(() => {
-                // For single-event sports: show result only when this season is complete
-                if (performance?.type === 'single' && performance.isComplete && performance.season === selectedSeason) {
+                // For single-event sports: show when complete
+                if (performance?.type === 'single' && performance.isComplete) {
                   const resultKey = performance.result ?? 'none';
                   const style = RESULT_STYLE[resultKey] || RESULT_STYLE.none;
                   const label = getResultLabel(sport, resultKey);
@@ -424,8 +440,8 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
                   );
                 }
 
-                // For F1: show final championship result only when complete
-                if (performance?.type === 'f1' && performance.isComplete && performance.season === selectedSeason) {
+                // For F1: show final championship result when complete
+                if (performance?.type === 'f1' && performance.isComplete) {
                   const pos = performance.position;
                   const style = pos === 1 ? RESULT_STYLE.champion :
                                 pos === 2 ? RESULT_STYLE.runner_up :
