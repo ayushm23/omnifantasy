@@ -16,6 +16,7 @@ import {
 import { useEPHistory } from '../useEPHistory';
 import { useTeamNews } from '../useTeamNews';
 import { useTeamPerformance } from '../useTeamPerformance';
+import { useTeamRecord, SPORT_SEASONS } from '../useTeamRecord';
 import SportBadge from './SportBadge';
 
 // Time frame options: label shown in UI, and approximate number of days to display.
@@ -64,9 +65,12 @@ const RESULT_META = {
 export default function TeamPopup({ sport, team, currentEP, onClose }) {
   const [activeTab, setActiveTab] = useState('ep');
   const [activeFrame, setActiveFrame] = useState('1W');
+  const seasons = SPORT_SEASONS[sport];
+  const [selectedSeason, setSelectedSeason] = useState(() => seasons?.current ?? null);
   const { history, loading: epLoading } = useEPHistory(sport, team);
   const { news, hasTeamNews, loading: newsLoading, newsError } = useTeamNews(sport, team);
   const { performance, loading: perfLoading } = useTeamPerformance(sport, team);
+  const { record, loading: recordLoading } = useTeamRecord(sport, team, selectedSeason);
 
   // Filter history to the selected time frame.
   // Snapshots arrive roughly every 2 days, so days/2 approximates the count needed.
@@ -219,7 +223,97 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
 
           {/* Performance tab */}
           {activeTab === 'performance' && (
-            <div className="space-y-3">
+            <div className="space-y-4">
+
+              {/* Season selector */}
+              {seasons && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSelectedSeason(seasons.current)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                      selectedSeason === seasons.current
+                        ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                        : 'bg-slate-700/40 border-slate-600/40 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {seasons.currentLabel}
+                  </button>
+                  <button
+                    onClick={() => setSelectedSeason(seasons.previous)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                      selectedSeason === seasons.previous
+                        ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                        : 'bg-slate-700/40 border-slate-600/40 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {seasons.previousLabel}
+                  </button>
+                </div>
+              )}
+
+              {/* Live record / standings — team sports + F1 */}
+              {recordLoading && (
+                <div className="h-16 rounded-lg bg-slate-700/30 animate-pulse" />
+              )}
+              {!recordLoading && record?.type === 'team' && (
+                <div className="bg-slate-700/30 border border-slate-600/30 rounded-xl px-4 py-3 space-y-1.5">
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+                    {record.division || 'Season Record'}
+                  </div>
+                  <div className="flex items-center gap-4 flex-wrap">
+                    {record.wins !== null && record.losses !== null && (
+                      <div>
+                        <span className="text-xl font-bold text-white">
+                          {record.wins}–{record.losses}
+                          {record.otLosses !== null ? `–${record.otLosses}` : ''}
+                          {record.ties !== null && record.ties > 0 ? `–${record.ties}` : ''}
+                        </span>
+                        <span className="text-xs text-slate-500 ml-1.5">W-L{record.otLosses !== null ? '-OTL' : ''}</span>
+                      </div>
+                    )}
+                    {record.playoffSeed !== null && (
+                      <div className="text-sm text-slate-300">
+                        Seed <span className="font-bold text-white">#{record.playoffSeed}</span>
+                      </div>
+                    )}
+                    {record.points !== null && record.wins === null && (
+                      <div className="text-sm text-slate-300">
+                        <span className="font-bold text-white">{record.points}</span> pts
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {!recordLoading && record?.type === 'f1' && (
+                <div className="bg-slate-700/30 border border-slate-600/30 rounded-xl px-4 py-3">
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Championship Standings</div>
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <div>
+                      <span className="text-xl font-bold text-white">P{record.position}</span>
+                      <span className="text-xs text-slate-500 ml-1.5">of {record.total}</span>
+                    </div>
+                    <div className="text-sm text-slate-300">
+                      <span className="font-bold text-white">{record.points}</span> pts
+                    </div>
+                    {record.wins > 0 && (
+                      <div className="text-sm text-slate-300">
+                        <span className="font-bold text-white">{record.wins}</span> win{record.wins !== 1 ? 's' : ''}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {!recordLoading && !record && seasons && !['Golf','MensTennis','WomensTennis','Euro','WorldCup'].includes(sport) && (
+                <p className="text-slate-500 text-xs text-center py-1">No standings data for this season.</p>
+              )}
+
+              {/* Divider before final result */}
+              {(record || ['Golf','MensTennis','WomensTennis','F1'].includes(sport)) && (
+                <div className="border-t border-slate-700/50" />
+              )}
+
+              {/* Existing: final tournament/playoff result from sport_results */}
+              <div className="space-y-3">
               {perfLoading ? (
                 <div className="space-y-2">
                   {[1, 2, 3].map(i => (
@@ -306,6 +400,7 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
                   </div>
                 </>
               ) : null}
+              </div>
             </div>
           )}
 
