@@ -548,16 +548,12 @@ const DraftView = (props) => {
           </div>
         </div>
 
-        {/* Tab Bar — Big Board and Draft Results only visible after draft completes */}
+        {/* Tab Bar */}
         <div className="bg-slate-800/40 border-b border-slate-700 shrink-0">
           <div className="max-w-7xl mx-auto px-3 md:px-6 flex gap-0">
             <TabButton label="Draft" isActive={activeDraftTab === 'draft'} onClick={() => setActiveDraftTab('draft')} />
-            {isDraftComplete && (
-              <TabButton label="Big Board" isActive={activeDraftTab === 'big-board'} onClick={() => setActiveDraftTab('big-board')} />
-            )}
-            {isDraftComplete && (
-              <TabButton label="Draft Results" isActive={activeDraftTab === 'draft-results'} onClick={() => setActiveDraftTab('draft-results')} />
-            )}
+            <TabButton label="Big Board" isActive={activeDraftTab === 'big-board'} onClick={() => setActiveDraftTab('big-board')} />
+            <TabButton label="Draft Results" isActive={activeDraftTab === 'draft-results'} onClick={() => setActiveDraftTab('draft-results')} />
           </div>
         </div>
 
