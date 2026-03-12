@@ -367,7 +367,7 @@ const DraftView = (props) => {
             {/* Top row - Branding and User */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="text-3xl">🏆</div>
+                <img src="/logo.png" alt="OmniFantasy" className="h-9 w-auto" />
                 <h1 className="text-2xl font-bold text-white">OmniFantasy</h1>
               </div>
               <div className="flex items-center gap-2">

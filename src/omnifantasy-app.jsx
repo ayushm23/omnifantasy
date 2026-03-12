@@ -871,12 +871,12 @@ const OmnifantasyApp = () => {
         <div className="bg-slate-800/60 backdrop-blur-sm border-b border-slate-700 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="flex items-center gap-3">
-              <div className="text-3xl">🏆</div>
+              <img src="/logo.png" alt="OmniFantasy" className="h-9 w-auto" />
               <h1 className="text-2xl font-bold text-white">OmniFantasy</h1>
             </div>
           </div>
         </div>
-        
+
         {/* Login Modal Content */}
         <div className="flex items-center justify-center p-4 mt-12">
         <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-slate-700 shadow-2xl">
@@ -1093,7 +1093,7 @@ const OmnifantasyApp = () => {
           <div className="max-w-7xl mx-auto px-3 md:px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="text-3xl">🏆</div>
+                <img src="/logo.png" alt="OmniFantasy" className="h-9 w-auto" />
                 <h1 className="text-2xl font-bold text-white">OmniFantasy</h1>
               </div>
               {/* Desktop nav */}
