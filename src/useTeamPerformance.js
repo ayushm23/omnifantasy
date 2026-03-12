@@ -10,8 +10,30 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { fetchSportResults, getSeasonYear } from './resultsApi';
+import { SPORT_SEASONS } from './useTeamRecord';
 
 const TENNIS_SPORTS = new Set(['MensTennis', 'WomensTennis']);
+
+// Sports where SPORT_SEASONS uses ESPN end-year convention (e.g. NBA 2024-25 → 2025).
+// fetchSportResults uses start-year convention (2024), so we subtract 1.
+const CROSS_YEAR_SPORTS = new Set(['NFL', 'NCAAF', 'NBA', 'NHL', 'NCAAMB', 'UCL']);
+
+// Convert a SPORT_SEASONS year (ESPN end-year convention) to the season year used by
+// fetchSportResults and the sport_results DB (start-year convention for cross-year sports).
+function toResultsYear(sportCode, espnYear) {
+  return CROSS_YEAR_SPORTS.has(sportCode) ? espnYear - 1 : espnYear;
+}
+
+// Returns the season year to pass to fetchSportResults for the most recently completed season.
+// Uses SPORT_SEASONS metadata so tournament sports (WorldCup 2022, Euro 2024) get the right year
+// instead of the naive getSeasonYear() - 1 calculation which would give 2025 for both.
+function getTargetCompletedYear(sport) {
+  const s = SPORT_SEASONS[sport];
+  if (!s) return getSeasonYear(sport) - 1;
+  // If the current season is already complete, target it; otherwise target the previous season.
+  const espnYear = s.currentComplete ? s.current : s.previous;
+  return toResultsYear(sport, espnYear);
+}
 
 function findSingleEventResult(results, team) {
   if (results.champion === team) return 'champion';
@@ -97,14 +119,19 @@ export function useTeamPerformance(sport, team) {
         if (cancelled) return;
         if (fresh?.is_complete) {
           row = { results: fresh, season: fresh.season };
-        } else if (fresh) {
-          // Current season in-progress — try fetching the previous completed season.
-          // For cross-year sports (NBA/NHL etc.): prevYear = currentYear - 1
-          const prevYear = getSeasonYear(sport) - 1;
-          const freshPrev = await fetchSportResults(sport, prevYear);
-          if (cancelled) return;
-          if (freshPrev?.is_complete) {
-            row = { results: freshPrev, season: freshPrev.season };
+        } else {
+          // Current season in-progress (or not yet started) — fetch the most recently
+          // completed season using SPORT_SEASONS metadata for the correct year.
+          // This handles tournament sports like WorldCup (2022) and Euro (2024) where
+          // getSeasonYear() - 1 would incorrectly give 2025 instead of the real year.
+          const targetYear  = getTargetCompletedYear(sport);
+          const currentYear = getSeasonYear(sport);
+          if (targetYear !== currentYear) {
+            const freshPrev = await fetchSportResults(sport, targetYear);
+            if (cancelled) return;
+            if (freshPrev?.is_complete) {
+              row = { results: freshPrev, season: freshPrev.season };
+            }
           }
         }
       }

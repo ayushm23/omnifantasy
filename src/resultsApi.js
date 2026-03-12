@@ -29,7 +29,7 @@ const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 const COMPLETE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
 const IN_PROGRESS_TTL = 4 * 60 * 60 * 1000;     // 4 hours
 // Bump this when the result shape changes to force-invalidate stale cached results
-const RESULTS_CACHE_VERSION = 2;
+const RESULTS_CACHE_VERSION = 3;
 
 // ─── Sport → ESPN path configuration ────────────────────────────────────────
 
@@ -41,13 +41,16 @@ const ESPN_CONFIG = {
   NHL:     { sport: 'hockey',     league: 'nhl',                    seasonType: 3 },
   NCAAF:   { sport: 'football',   league: 'college-football',        seasonType: 3 },
   NCAAMB:  { sport: 'basketball', league: 'mens-college-basketball', seasonType: 3 },
-  UCL:     { sport: 'soccer',     league: 'uefa.champions',          seasonType: 2 },
-  WorldCup:{ sport: 'soccer',     league: 'fifa.world',              seasonType: 2 },
-  Euro:    { sport: 'soccer',     league: 'uefa.euro',               seasonType: 2 },
+  UCL:     { sport: 'soccer',     league: 'uefa.champions',          seasonType: 3 },
+  WorldCup:{ sport: 'soccer',     league: 'fifa.world',              seasonType: 3 },
+  Euro:    { sport: 'soccer',     league: 'uefa.euro',               seasonType: 3 },
 };
 
 // Round name fragments that identify each bracket stage.
 // Matched case-insensitively against the ESPN `season.slug` or `type.text` or note text.
+// IMPORTANT: Check more-specific patterns first to avoid substring collisions.
+// e.g. 'finals' matches 'conference finals'; 'final' matches 'semifinal'/'quarterfinal'.
+// More specific patterns are listed earlier so the loop returns before reaching broader ones.
 const ROUND_MATCHERS = {
   NFL: {
     championship: ['super bowl'],
@@ -55,9 +58,10 @@ const ROUND_MATCHERS = {
     quarterfinals:['divisional'],
   },
   NBA: {
-    championship: ['finals'],
+    // 'nba finals' avoids false-matching 'conference finals'
     semifinals:   ['conference finals'],
-    quarterfinals:['conference semifinals', 'second round'],
+    championship: ['nba finals', 'nba final'],
+    quarterfinals:['conference semi', 'second round'],
   },
   MLB: {
     championship: ['world series'],
@@ -65,34 +69,37 @@ const ROUND_MATCHERS = {
     quarterfinals:['division series'],
   },
   NHL: {
-    championship: ['stanley cup final', 'finals'],
+    // 'stanley cup' avoids false-matching 'conference finals'
     semifinals:   ['conference finals'],
-    quarterfinals:['conference semifinals', 'second round'],
+    championship: ['stanley cup'],
+    quarterfinals:['conference semi', 'second round'],
   },
   NCAAF: {
     championship: ['national championship', 'cfp championship'],
-    semifinals:   ['cfp semifinal', 'semifinals'],
+    semifinals:   ['cfp semifinal', 'semifinal'],
     quarterfinals:['quarterfinal'],
   },
   NCAAMB: {
-    championship: ['championship'],
-    semifinals:   ['final four', 'national semifinals'],
+    // Check more specific rounds first to prevent 'championship' matching 'regional championship'
     quarterfinals:['elite eight', 'regional'],
+    semifinals:   ['final four', 'national semi'],
+    championship: ['national championship', 'ncaa championship'],
   },
   UCL: {
-    championship: ['final'],
-    semifinals:   ['semifinal', 'semi-final'],
+    // Check longer patterns first: 'quarterfinal' and 'semifinal' both contain 'final'
     quarterfinals:['quarterfinal', 'quarter-final'],
+    semifinals:   ['semifinal', 'semi-final'],
+    championship: ['final'],
   },
   WorldCup: {
-    championship: ['final'],
-    semifinals:   ['semifinal', 'semi-final'],
     quarterfinals:['quarterfinal', 'quarter-final'],
+    semifinals:   ['semifinal', 'semi-final'],
+    championship: ['final'],
   },
   Euro: {
-    championship: ['final'],
-    semifinals:   ['semifinal', 'semi-final'],
     quarterfinals:['quarterfinal', 'quarter-final'],
+    semifinals:   ['semifinal', 'semi-final'],
+    championship: ['final'],
   },
 };
 
@@ -257,8 +264,8 @@ function parseEspnBracket(events, sportCode) {
  * Fetch F1 final driver standings from Jolpica.
  * Returns { standings: [string], is_complete: bool, season: number }
  */
-async function fetchF1Results() {
-  const season = getSeasonYear('F1');
+async function fetchF1Results(yearOverride = null) {
+  const season = yearOverride ?? getSeasonYear('F1');
   try {
     // Fetch final standings for the season year
     const url = `https://api.jolpi.ca/ergast/f1/${season}/driverStandings.json`;
@@ -326,11 +333,14 @@ const TENNIS_GRAND_SLAMS_WOMEN = [
  * ESPN tournament scoreboard: GET /sports/{espnLeague}/scoreboard?limit=200
  * We look for the completed tournament matching the slug.
  */
-async function fetchTournamentResults(tournamentConfig) {
+async function fetchTournamentResults(tournamentConfig, yearOverride = null) {
   const { name, espnLeague, slug, approxMonth } = tournamentConfig;
-  const year = new Date().getFullYear();
+  const year = yearOverride ?? new Date().getFullYear();
   try {
-    const url = `${ESPN_BASE}/${espnLeague}/scoreboard?limit=200`;
+    // Include season year so ESPN returns all events for that year including completed ones.
+    // Without this, the ESPN scoreboard only returns currently scheduled/active tournaments
+    // and completed events from earlier in the year disappear from the response.
+    const url = `${ESPN_BASE}/${espnLeague}/scoreboard?season=${year}&limit=200`;
     const resp = await fetch(url);
     if (!resp.ok) return { name, is_complete: false, approxMonth, year };
 
@@ -524,9 +534,9 @@ function computeMultiEventRankings(events, getEventPointsFn) {
  * Fetch results for all 4 Golf majors.
  * Returns { events[], rankings[], is_complete, season }
  */
-async function fetchGolfResults() {
-  const season = getSeasonYear('Golf');
-  const events = await Promise.all(GOLF_MAJORS.map(fetchTournamentResults));
+async function fetchGolfResults(yearOverride = null) {
+  const season = yearOverride ?? getSeasonYear('Golf');
+  const events = await Promise.all(GOLF_MAJORS.map(t => fetchTournamentResults(t, season)));
   const is_complete = events.every(e => e.is_complete);
   const rankings = computeMultiEventRankings(events, golfEventPoints);
   return { events, rankings, is_complete, season };
@@ -536,9 +546,9 @@ async function fetchGolfResults() {
  * Fetch results for all 4 Men's Tennis Grand Slams.
  * Returns { events[], rankings[], is_complete, season }
  */
-async function fetchMensTennisResults() {
-  const season = getSeasonYear('MensTennis');
-  const events = await Promise.all(TENNIS_GRAND_SLAMS_MEN.map(fetchTournamentResults));
+async function fetchMensTennisResults(yearOverride = null) {
+  const season = yearOverride ?? getSeasonYear('MensTennis');
+  const events = await Promise.all(TENNIS_GRAND_SLAMS_MEN.map(t => fetchTournamentResults(t, season)));
   const is_complete = events.every(e => e.is_complete);
   const rankings = computeMultiEventRankings(events, tennisEventPoints);
   return { events, rankings, is_complete, season };
@@ -548,9 +558,9 @@ async function fetchMensTennisResults() {
  * Fetch results for all 4 Women's Tennis Grand Slams.
  * Returns { events[], rankings[], is_complete, season }
  */
-async function fetchWomensTennisResults() {
-  const season = getSeasonYear('WomensTennis');
-  const events = await Promise.all(TENNIS_GRAND_SLAMS_WOMEN.map(fetchTournamentResults));
+async function fetchWomensTennisResults(yearOverride = null) {
+  const season = yearOverride ?? getSeasonYear('WomensTennis');
+  const events = await Promise.all(TENNIS_GRAND_SLAMS_WOMEN.map(t => fetchTournamentResults(t, season)));
   const is_complete = events.every(e => e.is_complete);
   const rankings = computeMultiEventRankings(events, tennisEventPoints);
   return { events, rankings, is_complete, season };
@@ -600,13 +610,13 @@ export async function fetchSportResults(sportCode, seasonYearOverride = null) {
   let results = null;
   try {
     if (sportCode === 'F1') {
-      if (!seasonYearOverride) results = await fetchF1Results();
+      results = await fetchF1Results(seasonYearOverride);
     } else if (sportCode === 'Golf') {
-      if (!seasonYearOverride) results = await fetchGolfResults();
+      results = await fetchGolfResults(seasonYearOverride);
     } else if (sportCode === 'MensTennis') {
-      if (!seasonYearOverride) results = await fetchMensTennisResults();
+      results = await fetchMensTennisResults(seasonYearOverride);
     } else if (sportCode === 'WomensTennis') {
-      if (!seasonYearOverride) results = await fetchWomensTennisResults();
+      results = await fetchWomensTennisResults(seasonYearOverride);
     } else if (ESPN_CONFIG[sportCode]) {
       const events = await fetchEspnScoreboard(sportCode, espnYear);
       const parsed = parseEspnBracket(events, sportCode);
