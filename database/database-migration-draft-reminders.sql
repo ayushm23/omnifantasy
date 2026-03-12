@@ -27,7 +27,7 @@ LANGUAGE sql
 SECURITY DEFINER
 SET search_path = auth, public
 AS $$
-  SELECT (raw_user_meta_data->>'receive_otc_emails')::boolean
+  SELECT COALESCE((raw_user_meta_data->>'receive_otc_emails')::boolean, true)
   FROM auth.users
   WHERE email = p_email
   LIMIT 1;

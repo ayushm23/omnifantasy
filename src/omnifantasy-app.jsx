@@ -200,8 +200,8 @@ const OmnifantasyApp = () => {
   } = useDraftQueue(selectedLeagueId, currentUser?.email);
 
   // Global user preference — stored in Supabase auth user metadata so it applies across all leagues.
-  // Default false: users must explicitly opt in.
-  const receiveOtcEmails = !!currentUser?.user_metadata?.receive_otc_emails;
+  // Default true: users receive OTC emails unless they explicitly opt out.
+  const receiveOtcEmails = currentUser?.user_metadata?.receive_otc_emails !== false;
   const setReceiveOtcEmails = async (val) => {
     await updateUserMetadata({ receive_otc_emails: val });
     // onAuthStateChange in useAuth will refresh currentUser automatically.
