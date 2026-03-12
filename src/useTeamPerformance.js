@@ -1,7 +1,10 @@
 // useTeamPerformance.js
-// Fetches the most recently COMPLETED season's results for a team/player.
+// Fetches season results for a team/player.
 //
-// Strategy:
+// When selectedSeason is provided, fetches that specific season.
+// When null, auto-selects the most recently completed season.
+//
+// Strategy (auto mode):
 //   1. Query sport_results DB for the 2 most recent rows, prefer the completed one.
 //   2. If no completed row in DB, call fetchSportResults to populate the cache and try again.
 //   3. If the current season is still in-progress, fetch the *previous* season year from ESPN.
@@ -14,14 +17,14 @@ import { SPORT_SEASONS } from './useTeamRecord';
 
 const TENNIS_SPORTS = new Set(['MensTennis', 'WomensTennis']);
 
-// Sports where SPORT_SEASONS uses ESPN end-year convention (e.g. NBA 2024-25 → 2025).
-// fetchSportResults uses start-year convention (2024), so we subtract 1.
-const CROSS_YEAR_SPORTS = new Set(['NFL', 'NCAAF', 'NBA', 'NHL', 'NCAAMB', 'UCL']);
+// Sports where SPORT_SEASONS uses ESPN end-year convention (e.g. NBA 2024-25 → 2026).
+// fetchSportResults and sport_results DB use start-year convention (2025), so we subtract 1.
+// NFL and NCAAF are NOT in this set — they already use start/calendar year in SPORT_SEASONS.
+const END_YEAR_SPORTS = new Set(['NBA', 'NHL', 'NCAAMB', 'UCL']);
 
-// Convert a SPORT_SEASONS year (ESPN end-year convention) to the season year used by
-// fetchSportResults and the sport_results DB (start-year convention for cross-year sports).
+// Convert a SPORT_SEASONS year to the season year used by fetchSportResults / sport_results DB.
 function toResultsYear(sportCode, espnYear) {
-  return CROSS_YEAR_SPORTS.has(sportCode) ? espnYear - 1 : espnYear;
+  return END_YEAR_SPORTS.has(sportCode) ? espnYear - 1 : espnYear;
 }
 
 // Returns the season year to pass to fetchSportResults for the most recently completed season.
@@ -88,7 +91,7 @@ function applyResults(results, season, sport, team, setPerformance) {
   }
 }
 
-export function useTeamPerformance(sport, team) {
+export function useTeamPerformance(sport, team, selectedSeason = null) {
   const [performance, setPerformance] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -99,47 +102,71 @@ export function useTeamPerformance(sport, team) {
     setPerformance(null);
 
     async function load() {
-      // Step 1: Query the 2 most recent cached rows; prefer a completed season.
-      // For in-progress sports (e.g. NBA 2025-26), this surfaces the prior
-      // completed season (e.g. 2024-25) if it was ever cached.
-      const { data } = await supabase
-        .from('sport_results')
-        .select('results, season')
-        .eq('sport_code', sport)
-        .order('season', { ascending: false })
-        .limit(2);
+      let row = null;
 
-      if (cancelled) return;
+      if (selectedSeason != null) {
+        // --- Directed fetch: user selected a specific season tab ---
+        // Convert from SPORT_SEASONS year convention to the start-year used in the DB.
+        const resultsYear = toResultsYear(sport, selectedSeason);
 
-      let row = data?.find(d => d.results?.is_complete) || null;
+        // Check cache first
+        const { data } = await supabase
+          .from('sport_results')
+          .select('results, season')
+          .eq('sport_code', sport)
+          .eq('season', resultsYear)
+          .maybeSingle();
 
-      // Step 2: If no completed row, trigger a fresh fetch for the current season.
-      if (!row) {
-        const fresh = await fetchSportResults(sport);
         if (cancelled) return;
-        if (fresh?.is_complete) {
-          row = { results: fresh, season: fresh.season };
+
+        if (data?.results) {
+          row = data;
         } else {
-          // Current season in-progress (or not yet started) — fetch the most recently
-          // completed season using SPORT_SEASONS metadata for the correct year.
-          // This handles tournament sports like WorldCup (2022) and Euro (2024) where
-          // getSeasonYear() - 1 would incorrectly give 2025 instead of the real year.
-          const targetYear  = getTargetCompletedYear(sport);
-          const currentYear = getSeasonYear(sport);
-          if (targetYear !== currentYear) {
-            const freshPrev = await fetchSportResults(sport, targetYear);
-            if (cancelled) return;
-            if (freshPrev?.is_complete) {
-              row = { results: freshPrev, season: freshPrev.season };
+          // Not cached — fetch from API
+          const fresh = await fetchSportResults(sport, resultsYear);
+          if (cancelled) return;
+          if (fresh) {
+            row = { results: fresh, season: fresh.season ?? resultsYear };
+          }
+        }
+      } else {
+        // --- Auto mode: find the most recently completed season ---
+        // Step 1: Query the 2 most recent cached rows; prefer a completed season.
+        const { data } = await supabase
+          .from('sport_results')
+          .select('results, season')
+          .eq('sport_code', sport)
+          .order('season', { ascending: false })
+          .limit(2);
+
+        if (cancelled) return;
+
+        row = data?.find(d => d.results?.is_complete) || null;
+
+        // Step 2: If no completed row, trigger a fresh fetch for the current season.
+        if (!row) {
+          const fresh = await fetchSportResults(sport);
+          if (cancelled) return;
+          if (fresh?.is_complete) {
+            row = { results: fresh, season: fresh.season };
+          } else {
+            // Current season in-progress — fetch the most recently completed season.
+            const targetYear  = getTargetCompletedYear(sport);
+            const currentYear = getSeasonYear(sport);
+            if (targetYear !== currentYear) {
+              const freshPrev = await fetchSportResults(sport, targetYear);
+              if (cancelled) return;
+              if (freshPrev?.is_complete) {
+                row = { results: freshPrev, season: freshPrev.season };
+              }
             }
           }
         }
-      }
 
-      // Step 3: Fall back to whatever in-progress row we have (shows live standings,
-      // no playoff label — better than showing nothing).
-      if (!row && data?.length) {
-        row = data[0];
+        // Step 3: Fall back to whatever in-progress row we have.
+        if (!row && data?.length) {
+          row = data[0];
+        }
       }
 
       if (cancelled) return;
@@ -152,7 +179,7 @@ export function useTeamPerformance(sport, team) {
     load().catch(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [sport, team]);
+  }, [sport, team, selectedSeason]);
 
   return { performance, loading };
 }

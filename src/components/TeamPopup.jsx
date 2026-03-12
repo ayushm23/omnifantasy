@@ -156,7 +156,7 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
   );
   const { history, loading: epLoading } = useEPHistory(sport, team);
   const { news, hasTeamNews, loading: newsLoading, newsError } = useTeamNews(sport, team);
-  const { performance, loading: perfLoading } = useTeamPerformance(sport, team);
+  const { performance, loading: perfLoading } = useTeamPerformance(sport, team, selectedSeason);
   const { record, loading: recordLoading } = useTeamRecord(sport, team, selectedSeason);
 
   // Filter history to the selected time frame.
