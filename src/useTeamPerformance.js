@@ -38,12 +38,12 @@ function getTargetCompletedYear(sport) {
   return toResultsYear(sport, espnYear);
 }
 
-function findSingleEventResult(results, team) {
+function findSingleEventResult(results, team, forceComplete = false) {
   if (results.champion === team) return 'champion';
   if (results.runner_up === team) return 'runner_up';
   if (results.semifinals?.includes(team)) return 'semifinalist';
   if (results.quarterfinalists?.includes(team)) return 'quarterfinalist';
-  if (results.is_complete) return 'none';
+  if (results.is_complete || forceComplete) return 'none';
   return null; // season in progress, team hasn't been eliminated yet
 }
 
@@ -58,7 +58,17 @@ function findEventResult(event, team, sport) {
   return null; // event not yet complete
 }
 
+function isSeasonCompleteByMeta(sport, resultsYear) {
+  const meta = SPORT_SEASONS[sport];
+  if (!meta) return false;
+  const espnYear = END_YEAR_SPORTS.has(sport) ? resultsYear + 1 : resultsYear;
+  if (espnYear < meta.current) return true;
+  if (espnYear === meta.current && meta.currentComplete) return true;
+  return false;
+}
+
 function applyResults(results, season, sport, team, setPerformance) {
+  const forceComplete = isSeasonCompleteByMeta(sport, season);
   if (sport === 'F1') {
     const pos = (results.standings || []).indexOf(team);
     setPerformance({
@@ -66,7 +76,7 @@ function applyResults(results, season, sport, team, setPerformance) {
       season,
       position: pos >= 0 ? pos + 1 : null,
       total: results.standings?.length || 20,
-      isComplete: !!results.is_complete,
+      isComplete: !!results.is_complete || forceComplete,
     });
   } else if (sport === 'Golf' || TENNIS_SPORTS.has(sport)) {
     const events = (results.events || []).map(ev => ({
@@ -85,8 +95,8 @@ function applyResults(results, season, sport, team, setPerformance) {
     setPerformance({
       type: 'single',
       season,
-      result: findSingleEventResult(results, team),
-      isComplete: !!results.is_complete,
+      result: findSingleEventResult(results, team, forceComplete),
+      isComplete: !!results.is_complete || forceComplete,
     });
   }
 }

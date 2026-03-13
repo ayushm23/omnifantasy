@@ -207,18 +207,32 @@ function getWinnerLoser(competition) {
   if (hasSeries) {
     const winner = competitors.find(c => c.series?.winner);
     const loser  = competitors.find(c => !c.series?.winner);
-    if (!winner || !loser) return null;
-    return {
-      winner: normalizeResultName(winner.team?.displayName || winner.team?.name || ''),
-      loser:  normalizeResultName(loser.team?.displayName  || loser.team?.name  || ''),
-    };
+    if (winner && loser) {
+      return {
+        winner: normalizeResultName(winner.team?.displayName || winner.team?.name || ''),
+        loser:  normalizeResultName(loser.team?.displayName  || loser.team?.name  || ''),
+      };
+    }
+    // Some ESPN postseason feeds don't set series.winner per competition.
+    // Fall through to game-level winner if the competition is complete.
   }
 
   // Single game: check winner flag
   if (!competition.status?.type?.completed) return null;
   const winner = competitors.find(c => c.winner);
   const loser  = competitors.find(c => !c.winner);
-  if (!winner || !loser) return null;
+  if (!winner || !loser) {
+    // Fallback: use score to infer winner when winner flags are missing.
+    const aScore = parseFloat(competitors[0]?.score?.value ?? competitors[0]?.score ?? NaN);
+    const bScore = parseFloat(competitors[1]?.score?.value ?? competitors[1]?.score ?? NaN);
+    if (!Number.isFinite(aScore) || !Number.isFinite(bScore) || aScore === bScore) return null;
+    const inferredWinner = aScore > bScore ? competitors[0] : competitors[1];
+    const inferredLoser = aScore > bScore ? competitors[1] : competitors[0];
+    return {
+      winner: normalizeResultName(inferredWinner.team?.displayName || inferredWinner.team?.name || ''),
+      loser:  normalizeResultName(inferredLoser.team?.displayName  || inferredLoser.team?.name  || ''),
+    };
+  }
   return {
     winner: normalizeResultName(winner.team?.displayName || winner.team?.name || ''),
     loser:  normalizeResultName(loser.team?.displayName  || loser.team?.name  || ''),
@@ -307,25 +321,25 @@ async function fetchF1Results(yearOverride = null) {
 // approxMonth = the calendar month the event typically starts (1=Jan, used to filter
 // out events that occurred before a league's draft date).
 const GOLF_MAJORS = [
-  { name: 'Masters',          espnLeague: 'golf/pga', slug: 'masters',               approxMonth: 4 }, // April
-  { name: 'PGA Championship', espnLeague: 'golf/pga', slug: 'pga-championship',       approxMonth: 5 }, // May
-  { name: 'US Open',          espnLeague: 'golf/pga', slug: 'us-open',                approxMonth: 6 }, // June
-  { name: 'The Open',         espnLeague: 'golf/pga', slug: 'the-open-championship',  approxMonth: 7 }, // July
+  { name: 'Masters',          espnLeague: 'golf/pga', slug: 'masters',               approxMonth: 4, matchAliases: ['masters tournament'] }, // April
+  { name: 'PGA Championship', espnLeague: 'golf/pga', slug: 'pga-championship',       approxMonth: 5, matchAliases: ['pga championship'] }, // May
+  { name: 'US Open',          espnLeague: 'golf/pga', slug: 'us-open',                approxMonth: 6, matchAliases: ['u.s. open', 'us open'] }, // June
+  { name: 'The Open',         espnLeague: 'golf/pga', slug: 'the-open-championship',  approxMonth: 7, matchAliases: ['the open championship'] }, // July
 ];
 
 // ESPN event slugs for tennis Grand Slams
 const TENNIS_GRAND_SLAMS_MEN = [
-  { name: 'Australian Open', espnLeague: 'tennis/atp', slug: 'australian-open', approxMonth: 1 }, // January
-  { name: 'French Open',     espnLeague: 'tennis/atp', slug: 'french-open',     approxMonth: 5 }, // late May
+  { name: 'Australian Open', espnLeague: 'tennis/atp', slug: 'australian-open', approxMonth: 1, matchAliases: ['aus open'] }, // January
+  { name: 'French Open',     espnLeague: 'tennis/atp', slug: 'french-open',     approxMonth: 5, matchAliases: ['roland garros'] }, // late May
   { name: 'Wimbledon',       espnLeague: 'tennis/atp', slug: 'wimbledon',       approxMonth: 6 }, // late June
-  { name: 'US Open',         espnLeague: 'tennis/atp', slug: 'us-open',         approxMonth: 8 }, // late August
+  { name: 'US Open',         espnLeague: 'tennis/atp', slug: 'us-open',         approxMonth: 8, matchAliases: ['u.s. open', 'us open'] }, // late August
 ];
 
 const TENNIS_GRAND_SLAMS_WOMEN = [
-  { name: 'Australian Open', espnLeague: 'tennis/wta', slug: 'australian-open', approxMonth: 1 }, // January
-  { name: 'French Open',     espnLeague: 'tennis/wta', slug: 'french-open',     approxMonth: 5 }, // late May
+  { name: 'Australian Open', espnLeague: 'tennis/wta', slug: 'australian-open', approxMonth: 1, matchAliases: ['aus open'] }, // January
+  { name: 'French Open',     espnLeague: 'tennis/wta', slug: 'french-open',     approxMonth: 5, matchAliases: ['roland garros'] }, // late May
   { name: 'Wimbledon',       espnLeague: 'tennis/wta', slug: 'wimbledon',       approxMonth: 6 }, // late June
-  { name: 'US Open',         espnLeague: 'tennis/wta', slug: 'us-open',         approxMonth: 8 }, // late August
+  { name: 'US Open',         espnLeague: 'tennis/wta', slug: 'us-open',         approxMonth: 8, matchAliases: ['u.s. open', 'us open'] }, // late August
 ];
 
 /**
@@ -333,8 +347,32 @@ const TENNIS_GRAND_SLAMS_WOMEN = [
  * ESPN tournament scoreboard: GET /sports/{espnLeague}/scoreboard?limit=200
  * We look for the completed tournament matching the slug.
  */
+function normalizeEventKey(value) {
+  return (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function eventMatchesTournament(event, tournamentConfig) {
+  const { name, slug, matchAliases = [] } = tournamentConfig;
+  const tokens = [slug, name, ...matchAliases].map(normalizeEventKey).filter(Boolean);
+  if (!tokens.length) return false;
+
+  const fields = [
+    event?.name,
+    event?.shortName,
+    event?.slug,
+    event?.season?.slug,
+    event?.season?.name,
+    event?.description,
+  ];
+
+  const hay = fields.map(normalizeEventKey).filter(Boolean);
+  if (!hay.length) return false;
+
+  return tokens.some(token => hay.some(h => h.includes(token)));
+}
+
 async function fetchTournamentResults(tournamentConfig, yearOverride = null) {
-  const { name, espnLeague, slug, approxMonth } = tournamentConfig;
+  const { name, espnLeague, approxMonth } = tournamentConfig;
   const year = yearOverride ?? new Date().getFullYear();
   try {
     // Include season year so ESPN returns all events for that year including completed ones.
@@ -347,37 +385,45 @@ async function fetchTournamentResults(tournamentConfig, yearOverride = null) {
     const data = await resp.json();
     const events = data?.events || [];
 
-    // Find the event matching our slug or name
-    const event = events.find(e => {
-      const eName = (e.name || e.slug || '').toLowerCase();
-      return eName.includes(slug) || eName.includes(name.toLowerCase());
-    });
+    // Find the event matching our slug/name/aliases
+    const event = events.find(e => eventMatchesTournament(e, tournamentConfig));
 
     if (!event || !event.competitions?.length) return { name, is_complete: false, approxMonth, year };
 
     // For golf/tennis, the competition list has one entry per round.
     // The final round determines champion (winner) and runner-up (finalist).
     // Look for the "Final" round competition.
-    const finalComp = event.competitions.find(c => {
-      const round = (c.type?.text || c.status?.type?.name || '').toLowerCase();
-      return round.includes('final') && !round.includes('semi') && !round.includes('quarter');
-    });
+    const roundTokens = (c) => [
+      c.type?.text,
+      c.type?.abbreviation,
+      c.type?.shortDetail,
+      c.status?.type?.name,
+      c.status?.type?.description,
+    ].filter(Boolean).map(s => s.toLowerCase());
 
-    const semiComps = event.competitions.filter(c => {
-      const round = (c.type?.text || c.status?.type?.name || '').toLowerCase();
-      return round.includes('semifinal') || round.includes('semi-final');
-    });
+    const hasToken = (tokens, needle) => tokens.some(t => t === needle);
+    const hasText = (tokens, needle) => tokens.some(t => t.includes(needle));
 
-    const quarterComps = event.competitions.filter(c => {
-      const round = (c.type?.text || c.status?.type?.name || '').toLowerCase();
-      return round.includes('quarterfinal') || round.includes('quarter-final');
-    });
+    const isFinal = (tokens) => {
+      const semi = hasText(tokens, 'semi') || hasToken(tokens, 'sf');
+      const quarter = hasText(tokens, 'quarter') || hasToken(tokens, 'qf');
+      const final = hasText(tokens, 'final') || hasText(tokens, 'championship') || hasToken(tokens, 'f');
+      return final && !semi && !quarter;
+    };
 
-    const r16Comps = event.competitions.filter(c => {
-      const round = (c.type?.text || c.status?.type?.name || '').toLowerCase();
-      return round.includes('round of 16') || round.includes('4th round') ||
-             round.includes('fourth round') || round === 'r16';
-    });
+    const isSemi = (tokens) =>
+      hasText(tokens, 'semifinal') || hasText(tokens, 'semi-final') || hasText(tokens, 'semi') || hasToken(tokens, 'sf');
+
+    const isQuarter = (tokens) =>
+      hasText(tokens, 'quarterfinal') || hasText(tokens, 'quarter-final') || hasText(tokens, 'quarter') || hasToken(tokens, 'qf');
+
+    const isR16 = (tokens) =>
+      hasText(tokens, 'round of 16') || hasText(tokens, '4th round') || hasText(tokens, 'fourth round') || hasToken(tokens, 'r16');
+
+    const finalComp = event.competitions.find(c => isFinal(roundTokens(c)));
+    const semiComps = event.competitions.filter(c => isSemi(roundTokens(c)));
+    const quarterComps = event.competitions.filter(c => isQuarter(roundTokens(c)));
+    const r16Comps = event.competitions.filter(c => isR16(roundTokens(c)));
 
     // For golf (stroke play), the competitors list on the tournament event holds the leaderboard.
     // The "winner" is the first-place finisher.

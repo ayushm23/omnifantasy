@@ -150,14 +150,21 @@ export default function TeamPopup({ sport, team, currentEP, onClose, onDraft, dr
   const [activeTab, setActiveTab] = useState('ep');
   const [activeFrame, setActiveFrame] = useState('1W');
   const seasons = SPORT_SEASONS[sport];
+  const noHistoryTournament = sport === 'WorldCup' || sport === 'Euro';
   // Default to current season if it has started, otherwise default to previous
   const [selectedSeason, setSelectedSeason] = useState(
-    () => (seasons?.seasonStarted ? seasons.current : seasons?.previous) ?? null
+    () => {
+      if (noHistoryTournament && seasons?.current) return seasons.current;
+      return (seasons?.seasonStarted ? seasons.current : seasons?.previous) ?? null;
+    }
   );
   const { history, loading: epLoading } = useEPHistory(sport, team);
   const { news, hasTeamNews, loading: newsLoading, newsError } = useTeamNews(sport, team);
   const { performance, loading: perfLoading } = useTeamPerformance(sport, team, selectedSeason);
+  const { performance: completedPerformance, loading: completedPerfLoading } = useTeamPerformance(sport, team, null);
   const { record, loading: recordLoading } = useTeamRecord(sport, team, selectedSeason);
+  const showResultDivider = (record || ['Golf','MensTennis','WomensTennis'].includes(sport))
+    && (performance?.type === 'multi' || performance?.isComplete || completedPerformance?.isComplete);
 
   // Filter history to the selected time frame.
   // Snapshots arrive roughly every 2 days, so days/2 approximates the count needed.
@@ -342,16 +349,18 @@ export default function TeamPopup({ sport, team, currentEP, onClose, onDraft, dr
                       {seasons.currentLabel}
                     </button>
                   )}
-                  <button
-                    onClick={() => setSelectedSeason(seasons.previous)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                      selectedSeason === seasons.previous
-                        ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
-                        : 'bg-slate-700/40 border-slate-600/40 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    {seasons.previousLabel}
-                  </button>
+                  {seasons.previous && !noHistoryTournament && (
+                    <button
+                      onClick={() => setSelectedSeason(seasons.previous)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                        selectedSeason === seasons.previous
+                          ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                          : 'bg-slate-700/40 border-slate-600/40 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {seasons.previousLabel}
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -428,24 +437,35 @@ export default function TeamPopup({ sport, team, currentEP, onClose, onDraft, dr
               )}
 
               {/* Divider before final result */}
-              {(record || ['Golf','MensTennis','WomensTennis'].includes(sport)) &&
-               performance && (performance.type === 'multi' || performance.isComplete) && (
+              {showResultDivider && (
                 <div className="border-t border-slate-700/50" />
               )}
 
               {/* Final tournament/playoff result from sport_results.
-                  Shows the most recently completed season result.
-                  Both season tabs show this — the label clarifies which season it refers to. */}
+                  For single-event sports, if the selected season is in progress we fall back
+                  to the most recently completed season (label shows which year). */}
               {(() => {
-                // For single-event sports: show when complete
-                if (performance?.type === 'single' && performance.isComplete) {
-                  const resultKey = performance.result ?? 'none';
+                const isMultiEvent = performance?.type === 'multi';
+                const isSingleEvent = performance?.type === 'single';
+                const isF1 = performance?.type === 'f1';
+                const allowCompletedFallback = !noHistoryTournament;
+                const resultSource = (isSingleEvent || isF1) && !performance?.isComplete && allowCompletedFallback
+                  ? completedPerformance
+                  : performance;
+
+                const resultLoading = (isSingleEvent || isF1) && !performance?.isComplete && allowCompletedFallback
+                  ? completedPerfLoading
+                  : perfLoading;
+
+                // For single-event sports: show when complete (fall back to most recent completed season)
+                if (resultSource?.type === 'single' && resultSource.isComplete) {
+                  const resultKey = resultSource.result ?? 'none';
                   const style = RESULT_STYLE[resultKey] || RESULT_STYLE.none;
                   const label = getResultLabel(sport, resultKey);
                   return (
                     <div className="space-y-2">
                       <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                        {performance.season} Season Result
+                        {resultSource.season} Season Result
                       </div>
                       <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${style.bg}`}>
                         <span className="text-2xl">{style.icon}</span>
@@ -456,8 +476,8 @@ export default function TeamPopup({ sport, team, currentEP, onClose, onDraft, dr
                 }
 
                 // For F1: show final championship result when complete
-                if (performance?.type === 'f1' && performance.isComplete) {
-                  const pos = performance.position;
+                if (resultSource?.type === 'f1' && resultSource.isComplete) {
+                  const pos = resultSource.position;
                   const style = pos === 1 ? RESULT_STYLE.champion :
                                 pos === 2 ? RESULT_STYLE.runner_up :
                                 pos <= 4  ? RESULT_STYLE.semifinalist :
@@ -465,7 +485,7 @@ export default function TeamPopup({ sport, team, currentEP, onClose, onDraft, dr
                   return (
                     <div className="space-y-2">
                       <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                        {performance.season} Championship Result
+                        {resultSource.season} Championship Result
                       </div>
                       {pos === null ? (
                         <p className="text-slate-400 text-sm">Driver not found in standings.</p>
@@ -476,7 +496,7 @@ export default function TeamPopup({ sport, team, currentEP, onClose, onDraft, dr
                           </span>
                           <div>
                             <div className={`text-base font-bold ${style.color}`}>P{pos}</div>
-                            <div className="text-xs text-slate-500">of {performance.total} drivers</div>
+                            <div className="text-xs text-slate-500">of {resultSource.total} drivers</div>
                           </div>
                         </div>
                       )}
@@ -519,7 +539,7 @@ export default function TeamPopup({ sport, team, currentEP, onClose, onDraft, dr
                   );
                 }
 
-                if (perfLoading) {
+                if (resultLoading) {
                   return (
                     <div className="space-y-2">
                       {[1, 2].map(i => (

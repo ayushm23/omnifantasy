@@ -42,8 +42,8 @@ export const SPORT_SEASONS = {
   Golf:         { current: 2026, previous: 2025, currentLabel: '2026',    previousLabel: '2025',    seasonStarted: false, currentComplete: false }, // 2026 Majors start April
   MensTennis:   { current: 2026, previous: 2025, currentLabel: '2026',    previousLabel: '2025',    seasonStarted: true,  currentComplete: false }, // AO done, slams ahead
   WomensTennis: { current: 2026, previous: 2025, currentLabel: '2026',    previousLabel: '2025',    seasonStarted: true,  currentComplete: false }, // AO done, slams ahead
-  Euro:         { current: 2024, previous: 2020, currentLabel: '2024',    previousLabel: '2020',    seasonStarted: true,  currentComplete: true  }, // Completed July 2024
-  WorldCup:     { current: 2022, previous: 2018, currentLabel: '2022',    previousLabel: '2018',    seasonStarted: true,  currentComplete: true  }, // Completed Dec 2022
+  Euro:         { current: 2028, previous: 2024, currentLabel: '2028',    previousLabel: '2024',    seasonStarted: false, currentComplete: false }, // Next tournament 2028
+  WorldCup:     { current: 2026, previous: 2022, currentLabel: '2026',    previousLabel: '2022',    seasonStarted: false, currentComplete: false }, // Next tournament 2026
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
