@@ -113,6 +113,7 @@ Deno.serve(async (req) => {
       const minsLeft  = Math.max(1, Math.round(timeRemaining / 60_000));
       const timeStr   = minsLeft >= 60 ? '1 hour' : `${minsLeft} minutes`;
       const name      = picker.name || picker.email.split('@')[0];
+      const draftUrl  = `${appUrl}?draft=${league.id}`;
       const subject   = `\u23F1 1 hour left to pick in ${league.name}`;
       const text = [
         `Hi ${name},`,
@@ -120,7 +121,7 @@ Deno.serve(async (req) => {
         `You have about ${timeStr} left to make your pick in ${league.name} on Omnifantasy.`,
         `If the timer runs out, a pick will be made automatically for you.`,
         ``,
-        `Draft now: ${appUrl}`,
+        `Draft now: ${draftUrl}`,
         ``,
         `Omnifantasy`,
       ].join('\n');
@@ -130,12 +131,12 @@ Deno.serve(async (req) => {
            <strong>${escapeHtml(league.name)}</strong> on Omnifantasy.</p>
         <p style="color:#6b7280;">If the timer runs out, a pick will be made automatically for you.</p>
         <p>
-          <a href="${escapeHtml(appUrl)}"
+          <a href="${escapeHtml(draftUrl)}"
              style="background:#dc2626;color:white;padding:10px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin:8px 0;font-weight:600;">
             Draft Now &#8594;
           </a>
         </p>
-        <p style="color:#6b7280;font-size:13px;">Or visit: ${escapeHtml(appUrl)}</p>
+        <p style="color:#6b7280;font-size:13px;">Or visit: ${escapeHtml(draftUrl)}</p>
       `;
 
       try {
