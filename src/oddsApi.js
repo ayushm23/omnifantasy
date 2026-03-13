@@ -4,12 +4,12 @@
 //
 // EP Model: Uses a positional probability model instead of simple p × 270.
 // Given win probability p, we estimate probability of reaching each finishing position:
-//   P(champion) = p, P(top 2) = min(1,2p), P(top 4) = min(1,4p), P(top 8) = min(1,10p)
+//   P(champion) = p, P(top 2) = min(1,2p), P(top 4) = min(1,4p), P(top 8) = min(1,12p)
 // Then: EP = P(champ)×80 + P(runner-up)×50 + P(semifinalist)×30 + P(quarterfinalist)×20
 //
-// Note: P(top 8) uses 10p (not 8p) to better reflect that mid-tier playoff teams reach
-// the quarterfinal round ~50% of the time, not 40% (the 8p uniform-distribution estimate
-// understates this for teams that are clear playoff participants).
+// Note: P(top 8) uses 12p (not 8p) to better reflect that playoff-caliber teams reach
+// the quarterfinal round ~60% of the time. The 8p uniform-distribution estimate
+// understates this for teams that are clear playoff participants.
 //
 // Caching strategy: Store results in Supabase odds_cache table shared by all users.
 // Refresh every 2 days to stay within free-tier API limits (500 credits/month).
@@ -22,7 +22,7 @@ import { normalizeOddsApiName } from './utils/aliases';
 const API_BASE = 'https://api.the-odds-api.com/v4/sports';
 const CACHE_TTL = 2 * 24 * 60 * 60 * 1000; // 2 days
 // Bump this when the EP formula changes to invalidate stale cached values
-const CACHE_VERSION = 9;
+const CACHE_VERSION = 10;
 const DEFAULT_ODDS_REGIONS = 'us';
 const GLOBAL_ODDS_REGIONS = 'us,uk,eu,au';
 // Sports where global bookmaker regions give better odds coverage
@@ -74,7 +74,7 @@ const QUARTERFINALIST_PTS = 20;
  * finishing position and weight by the points for that position.
  *
  * Given win probability p:
- *   P(top 2) ≈ min(1, 2p), P(top 4) ≈ min(1, 4p), P(top 8) ≈ min(1, 10p)
+ *   P(top 2) ≈ min(1, 2p), P(top 4) ≈ min(1, 4p), P(top 8) ≈ min(1, 12p)
  *   P(runner-up) = P(top 2) - P(champion)
  *   P(semifinalist) = P(top 4) - P(top 2)
  *   P(quarterfinalist) = P(top 8) - P(top 4)

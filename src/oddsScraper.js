@@ -120,7 +120,7 @@ const SCRAPED_SPORT_CODES = ['F1'];
 function calculateEPFromProb(p) {
   const pTop2 = Math.min(1, 2 * p);
   const pTop4 = Math.min(1, 4 * p);
-  const pTop8 = Math.min(1, 10 * p);
+  const pTop8 = Math.min(1, 12 * p);
   return p * 80 + (pTop2 - p) * 50 + (pTop4 - pTop2) * 30 + (pTop8 - pTop4) * 20;
 }
 
