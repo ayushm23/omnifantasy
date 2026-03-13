@@ -146,6 +146,9 @@ export const ESPN_RESULT_ALIASES = {
 // Maps Jolpica F1 driver names to OmniFantasy TEAM_POOLS names (diacritics, etc.)
 export const F1_NAME_ALIASES = {
   'Nico Hülkenberg': 'Nico Hulkenberg',
+  'Andrea Kimi Antonelli': 'Kimi Antonelli',
+  'Alexander Albon': 'Alex Albon',
+  'Sergio Pérez': 'Sergio Perez',
 };
 
 export const normalizeOddsApiName = (name) => ODDS_API_ALIASES[name] || name;

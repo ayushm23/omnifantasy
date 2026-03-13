@@ -22,7 +22,7 @@ import { normalizeOddsApiName } from './utils/aliases';
 const API_BASE = 'https://api.the-odds-api.com/v4/sports';
 const CACHE_TTL = 2 * 24 * 60 * 60 * 1000; // 2 days
 // Bump this when the EP formula changes to invalidate stale cached values
-const CACHE_VERSION = 10;
+const CACHE_VERSION = 11;
 const DEFAULT_ODDS_REGIONS = 'us';
 const GLOBAL_ODDS_REGIONS = 'us,uk,eu,au';
 // Sports where global bookmaker regions give better odds coverage

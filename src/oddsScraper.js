@@ -33,15 +33,17 @@ const F1_PRESEASON_ODDS = {
   'Fernando Alonso': 0.03,
   'Pierre Gasly': 0.02,
   'Alex Albon': 0.02,
-  'Yuki Tsunoda': 0.015,
+  'Arvid Lindblad': 0.012,
   'Nico Hulkenberg': 0.01,
   'Oliver Bearman': 0.01,
   'Esteban Ocon': 0.008,
+  'Franco Colapinto': 0.007,
+  'Sergio Perez': 0.007,
   'Lance Stroll': 0.005,
-  'Jack Doohan': 0.004,
   'Isack Hadjar': 0.004,
   'Gabriel Bortoleto': 0.004,
   'Liam Lawson': 0.003,
+  'Valtteri Bottas': 0.003,
 };
 
 // ATP 2026 Grand Slam aggregate — preseason implied win probabilities.
