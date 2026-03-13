@@ -89,6 +89,12 @@ const OmnifantasyApp = () => {
   const [selectedHomeTeamInfo, setSelectedHomeTeamInfo] = useState(null); // { sport, team, currentEP }
   const homeTeamInfoFromSportsRef = useRef(false);
 
+  // Capture the ?draft= URL param synchronously at mount so it's never lost
+  // to timing (e.g. the effect running before leagues load cleaning the URL first).
+  const pendingDraftLeagueIdRef = useRef(
+    new URLSearchParams(window.location.search).get('draft')
+  );
+
   // League Chat
   const [showLeagueChat, setShowLeagueChat] = useState(false);
 
@@ -340,20 +346,20 @@ const OmnifantasyApp = () => {
   const filteredSportResults = filterResultsForLeague(sportResults, selectedLeague?.draftDate);
 
   // Deep-link handler: ?draft=<leagueId> opens the draft room directly.
-  // Runs once after the user is authenticated and leagues have loaded.
-  // Cleans the param from the URL so refreshing doesn't re-trigger.
+  // The league ID is captured in a ref at mount (synchronously) so it's never
+  // lost if the effect fires before leagues are loaded. Once navigation fires
+  // the ref is cleared so subsequent league reloads don't re-navigate.
   useEffect(() => {
-    if (!user || leaguesLoading || leagues.length === 0) return;
-    const params = new URLSearchParams(window.location.search);
-    const targetLeagueId = params.get('draft');
+    const targetLeagueId = pendingDraftLeagueIdRef.current;
     if (!targetLeagueId) return;
+    if (!user || leaguesLoading) return;
 
-    // Remove the param from the URL without a page reload
-    const cleanUrl = window.location.pathname;
-    window.history.replaceState({}, '', cleanUrl);
+    // Clean the URL param so refreshing doesn't re-trigger
+    window.history.replaceState({}, '', window.location.pathname);
+    pendingDraftLeagueIdRef.current = null;
 
     const league = leagues.find(l => l.id === targetLeagueId);
-    if (!league?.draftStarted) return; // draft not active, ignore
+    if (!league) return;
 
     const isMember = league.membersList?.some(
       m => m.email.toLowerCase() === user.email.toLowerCase()
@@ -362,7 +368,8 @@ const OmnifantasyApp = () => {
     if (!isMember && !isCommissioner) return;
 
     setSelectedLeagueId(targetLeagueId);
-    setCurrentView('draft');
+    // Navigate to draft if active, otherwise league view
+    setCurrentView(league.draftStarted ? 'draft' : 'league');
   }, [user, leaguesLoading, leagues]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getExpectedPoints = (sportCode, teamName) => {
