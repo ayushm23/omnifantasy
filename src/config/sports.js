@@ -1,3 +1,5 @@
+import TEAM_POOLS_BY_CODE from '../../shared/team-pools.json';
+
 export const AVAILABLE_SPORTS = [
   { code: 'NFL', name: 'NFL', icon: '🏈', maxLeagueSize: null },
   { code: 'NCAAF', name: 'NCAA Football', icon: '🏈', maxLeagueSize: null },
@@ -14,26 +16,37 @@ export const AVAILABLE_SPORTS = [
   { code: 'WomensTennis', name: 'WTA', icon: '🎾', maxLeagueSize: null },
 ];
 
-export const TEAM_POOLS = {
-  'NFL': ['Kansas City Chiefs', 'Buffalo Bills', 'San Francisco 49ers', 'Philadelphia Eagles', 'Baltimore Ravens', 'Detroit Lions', 'Dallas Cowboys', 'Green Bay Packers', 'Miami Dolphins', 'LA Rams', 'Tampa Bay Buccaneers', 'Minnesota Vikings', 'Cleveland Browns', 'Cincinnati Bengals', 'Jacksonville Jaguars', 'Houston Texans', 'Pittsburgh Steelers', 'LA Chargers', 'Seattle Seahawks', 'New Orleans Saints', 'Atlanta Falcons', 'NY Jets', 'Indianapolis Colts', 'Las Vegas Raiders', 'Denver Broncos', 'Tennessee Titans', 'NY Giants', 'New England Patriots', 'Washington Commanders', 'Arizona Cardinals', 'Chicago Bears', 'Carolina Panthers'],
-  'NCAA Football': ['Georgia', 'Alabama', 'Ohio State', 'Michigan', 'Texas', 'Oregon', 'Penn State', 'Notre Dame', 'Clemson', 'USC', 'LSU', 'Florida State', 'Tennessee', 'Oklahoma', 'Washington', 'Utah', 'Ole Miss', 'Texas A&M', 'Miami', 'Kansas State', 'Iowa', 'Wisconsin', 'NC State', 'TCU', 'Tulane', 'UCF', 'Louisville', 'Oregon State', 'Fresno State', 'South Carolina', 'Missouri', 'Oklahoma State', 'Iowa State', 'Arizona', 'BYU', 'Boise State', 'Liberty', 'Kansas', 'West Virginia', 'Virginia Tech', 'North Carolina', 'Nebraska', 'Texas Tech', 'SMU', 'Baylor', 'Arizona State', 'Mississippi State', 'Arkansas', 'Kentucky', 'Florida', 'Georgia Tech', 'Auburn', 'Maryland', 'Minnesota', 'Duke', 'Syracuse', 'Pittsburgh', 'Cincinnati', 'Memphis', 'Colorado'],
-  'NBA': ['Boston Celtics', 'Cleveland Cavaliers', 'Oklahoma City Thunder', 'Milwaukee Bucks', 'Denver Nuggets', 'New York Knicks', 'LA Lakers', 'Phoenix Suns', 'Dallas Mavericks', 'Minnesota Timberwolves', 'LA Clippers', 'Golden State Warriors', 'Orlando Magic', 'Indiana Pacers', 'Miami Heat', 'Sacramento Kings', 'Philadelphia 76ers', 'Memphis Grizzlies', 'Houston Rockets', 'Atlanta Hawks', 'San Antonio Spurs', 'Chicago Bulls', 'New Orleans Pelicans', 'Detroit Pistons', 'Brooklyn Nets', 'Toronto Raptors', 'Charlotte Hornets', 'Portland Trail Blazers', 'Utah Jazz', 'Washington Wizards'],
-  "NCAA Men's Basketball": ['UConn', 'Duke', 'Kansas', 'North Carolina', 'Purdue', 'Houston', 'Kentucky', 'Tennessee', 'Arizona', 'Auburn', 'Gonzaga', 'Marquette', 'Creighton', 'Baylor', 'Illinois', 'Alabama', 'UCLA', 'Texas', 'San Diego State', 'Iowa State', 'Michigan', 'Xavier', 'Miami', 'Arkansas', 'TCU', 'Villanova', "Saint Mary's", 'Memphis', 'Michigan State', 'Indiana', 'Florida', 'Texas Tech', 'BYU', 'Wisconsin', 'Ohio State', 'Rutgers', 'Seton Hall', 'Providence', "St. John's", 'New Mexico', 'Dayton', 'Colorado State', 'Utah State', 'Mississippi State', 'Texas A&M', 'Clemson', 'Virginia', 'NC State', 'Wake Forest', 'Oklahoma', 'Oklahoma State', 'LSU', 'Ole Miss', 'Iowa', 'Nebraska', 'Kansas State', 'Arizona State', 'Cincinnati', 'USC', 'Oregon'],
-  'MLB': ['LA Dodgers', 'New York Yankees', 'Atlanta Braves', 'Houston Astros', 'Philadelphia Phillies', 'Baltimore Orioles', 'Texas Rangers', 'Tampa Bay Rays', 'San Diego Padres', 'Toronto Blue Jays', 'Seattle Mariners', 'Arizona Diamondbacks', 'Boston Red Sox', 'San Francisco Giants', 'Minnesota Twins', 'Milwaukee Brewers', 'Cleveland Guardians', 'St. Louis Cardinals', 'Chicago Cubs', 'Miami Marlins', 'Cincinnati Reds', 'Kansas City Royals', 'Detroit Tigers', 'Pittsburgh Pirates', 'LA Angels', 'NY Mets', 'Chicago White Sox', 'Oakland Athletics', 'Colorado Rockies', 'Washington Nationals'],
-  'NHL': ['Florida Panthers', 'Edmonton Oilers', 'New York Rangers', 'Dallas Stars', 'Carolina Hurricanes', 'Colorado Avalanche', 'Vancouver Canucks', 'Winnipeg Jets', 'Vegas Golden Knights', 'Toronto Maple Leafs', 'Boston Bruins', 'Tampa Bay Lightning', 'Los Angeles Kings', 'Nashville Predators', 'New Jersey Devils', 'Minnesota Wild', 'Seattle Kraken', 'Washington Capitals', 'Detroit Red Wings', 'St. Louis Blues', 'Ottawa Senators', 'Calgary Flames', 'New York Islanders', 'Buffalo Sabres', 'Pittsburgh Penguins', 'Utah Hockey Club', 'Philadelphia Flyers', 'Montreal Canadiens', 'Columbus Blue Jackets', 'Anaheim Ducks', 'San Jose Sharks', 'Chicago Blackhawks'],
-  'UEFA Champions League': ['Real Madrid', 'Manchester City', 'Bayern Munich', 'Liverpool', 'Barcelona', 'Paris Saint-Germain', 'Inter Milan', 'Arsenal', 'Atletico Madrid', 'Borussia Dortmund', 'AC Milan', 'Chelsea', 'RB Leipzig', 'Porto', 'Napoli', 'Benfica', 'Tottenham', 'PSV', 'Juventus', 'Manchester United', 'Sevilla', 'Ajax', 'Sporting CP', 'Roma', 'Shakhtar Donetsk', 'Red Bull Salzburg', 'Celtic', 'Club Brugge', 'Galatasaray', 'Copenhagen', 'Rangers', 'Marseille'],
-  'UEFA Euro': ['England', 'France', 'Spain', 'Germany', 'Portugal', 'Italy', 'Netherlands', 'Belgium', 'Croatia', 'Denmark', 'Switzerland', 'Austria', 'Turkey', 'Ukraine', 'Poland', 'Serbia', 'Scotland', 'Wales', 'Sweden', 'Norway', 'Czech Republic', 'Hungary', 'Romania', 'Slovakia'],
-  'World Cup': ['Argentina', 'France', 'Brazil', 'England', 'Spain', 'Portugal', 'Germany', 'Netherlands', 'Belgium', 'Italy', 'Croatia', 'Uruguay', 'Morocco', 'Mexico', 'USA', 'Colombia', 'Switzerland', 'Denmark', 'Senegal', 'Japan', 'South Korea', 'Poland', 'Austria', 'Ukraine', 'Sweden', 'Ecuador', 'Australia', 'Wales', 'Canada', 'Serbia', 'Chile', 'Peru'],
-  'Golf': ['Scottie Scheffler', 'Rory McIlroy', 'Jon Rahm', 'Viktor Hovland', 'Xander Schauffele', 'Bryson DeChambeau', 'Brooks Koepka', 'Patrick Cantlay', 'Collin Morikawa', 'Ludvig Åberg', 'Tommy Fleetwood', 'Justin Thomas', 'Jordan Spieth', 'Max Homa', 'Cameron Smith'],
-  'Golf (majors)': ['Scottie Scheffler', 'Rory McIlroy', 'Jon Rahm', 'Viktor Hovland', 'Xander Schauffele', 'Bryson DeChambeau', 'Brooks Koepka', 'Patrick Cantlay', 'Collin Morikawa', 'Ludvig Åberg', 'Tommy Fleetwood', 'Justin Thomas', 'Jordan Spieth', 'Max Homa', 'Cameron Smith'],
-  "Men's Tennis (ATP)": ['Jannik Sinner', 'Carlos Alcaraz', 'Novak Djokovic', 'Daniil Medvedev', 'Alexander Zverev', 'Andrey Rublev', 'Casper Ruud', 'Holger Rune', 'Stefanos Tsitsipas', 'Taylor Fritz', 'Hubert Hurkacz', 'Alex de Minaur', 'Grigor Dimitrov', 'Tommy Paul', 'Frances Tiafoe', 'Karen Khachanov', 'Cameron Norrie', 'Jannik Paul', 'Sebastian Baez', 'Lorenzo Musetti', 'Ben Shelton', 'Nicolas Jarry', 'Ugo Humbert', 'Alexander Bublik', 'Tallon Griekspoor', 'Adrian Mannarino', 'Felix Auger-Aliassime', 'Arthur Fils', 'Sebastian Korda', 'Alexei Popyrin'],
-  "Women's Tennis (WTA)": ['Aryna Sabalenka', 'Iga Swiatek', 'Coco Gauff', 'Elena Rybakina', 'Jessica Pegula', 'Ons Jabeur', 'Marketa Vondrousova', 'Qinwen Zheng', 'Maria Sakkari', 'Jelena Ostapenko', 'Barbora Krejcikova', 'Beatriz Haddad Maia', 'Karolina Muchova', 'Danielle Collins', 'Madison Keys', 'Liudmila Samsonova', 'Daria Kasatkina', 'Emma Navarro', 'Jasmine Paolini', 'Victoria Azarenka', 'Caroline Garcia', 'Leylah Fernandez', 'Veronika Kudermetova', 'Elise Mertens', 'Anastasia Pavlyuchenkova', 'Linda Noskova', 'Sloane Stephens', 'Katie Boulter', 'Donna Vekic', 'Marta Kostyuk'],
-  'F1': ['Max Verstappen', 'Lewis Hamilton', 'Lando Norris', 'Charles Leclerc', 'George Russell', 'Oscar Piastri', 'Carlos Sainz', 'Fernando Alonso', 'Pierre Gasly', 'Alex Albon', 'Lance Stroll', 'Nico Hulkenberg', 'Liam Lawson', 'Esteban Ocon', 'Oliver Bearman', 'Isack Hadjar', 'Gabriel Bortoleto', 'Kimi Antonelli', 'Franco Colapinto', 'Arvid Lindblad', 'Sergio Perez', 'Valtteri Bottas'],
+export const TEAM_POOLS = {};
+
+const DISPLAY_NAME_BY_CODE = {
+  NFL: 'NFL',
+  NCAAF: 'NCAA Football',
+  NBA: 'NBA',
+  NCAAMB: "NCAA Men's Basketball",
+  MLB: 'MLB',
+  NHL: 'NHL',
+  UCL: 'UEFA Champions League',
+  Euro: 'UEFA Euro',
+  WorldCup: 'World Cup',
+  F1: 'F1',
+  Golf: 'Golf (majors)',
+  MensTennis: 'ATP',
+  WomensTennis: 'WTA',
 };
 
-// Backward-compatible aliases for tennis pool names.
-TEAM_POOLS.ATP = TEAM_POOLS["Men's Tennis (ATP)"];
-TEAM_POOLS.WTA = TEAM_POOLS["Women's Tennis (WTA)"];
+Object.entries(TEAM_POOLS_BY_CODE).forEach(([code, pool]) => {
+  const displayName = DISPLAY_NAME_BY_CODE[code] || code;
+  TEAM_POOLS[code] = pool;
+  TEAM_POOLS[displayName] = pool;
+});
+
+// Backward-compatible aliases for tennis/golf pool names.
+TEAM_POOLS['Golf'] = TEAM_POOLS_BY_CODE.Golf;
+TEAM_POOLS['Golf (majors)'] = TEAM_POOLS_BY_CODE.Golf;
+TEAM_POOLS["Men's Tennis (ATP)"] = TEAM_POOLS_BY_CODE.MensTennis;
+TEAM_POOLS["Women's Tennis (WTA)"] = TEAM_POOLS_BY_CODE.WomensTennis;
+TEAM_POOLS.ATP = TEAM_POOLS_BY_CODE.MensTennis;
+TEAM_POOLS.WTA = TEAM_POOLS_BY_CODE.WomensTennis;
 
 export const EP_DRIVEN_POOL_SPORTS = new Set(['UCL', 'Euro', 'WorldCup', 'Golf', 'MensTennis', 'WomensTennis', 'F1']);
 
