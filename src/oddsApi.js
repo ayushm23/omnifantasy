@@ -13,7 +13,7 @@
 // ~21 API calls per refresh × ~15 refreshes/month = ~315 credits/month.
 
 import { getOddsCache, upsertOddsCache, insertEPHistory } from './supabaseClient';
-import { fetchScrapedProbabilities, isScrapedSport } from './oddsScraper';
+import { fetchScrapedProbabilities, isScrapedSport, getPreseasonFallbackEP } from './oddsScraper';
 import { normalizeOddsApiName } from './utils/aliases';
 
 const API_BASE = 'https://api.the-odds-api.com/v4/sports';
@@ -276,7 +276,21 @@ export async function fetchExpectedPoints(sportCode) {
     }
 
     // Fetch returned nothing — return stale data if available
-    return strictFuturesOnly ? {} : (staleData || {});
+    if (strictFuturesOnly) return {};
+    if (staleData) return staleData;
+
+    // No stale data either (e.g. cache cleared mid dead-zone) — use preseason fallback
+    // for multi-event sports (Tennis). Write it to cache so the TTL applies normally;
+    // it will be overwritten when real slam markets open.
+    const fallback = getPreseasonFallbackEP(sportCode);
+    if (fallback) {
+      try {
+        await upsertOddsCache(sportCode, { _v: CACHE_VERSION, ...fallback });
+      } catch { /* ignore */ }
+      return fallback;
+    }
+
+    return {};
   } catch {
     return strictFuturesOnly ? {} : (staleData || {});
   }
