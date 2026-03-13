@@ -1559,6 +1559,20 @@ const DraftView = (props) => {
               setShowSportsModal(true);
             }
           }}
+          onDraft={() => {
+            teamInfoFromSportsRef.current = false;
+            setSelectedTeamInfo(null);
+            setPendingPick({ sport: selectedTeamInfo.sport, team: selectedTeamInfo.team });
+            setShowPickConfirmation(true);
+          }}
+          draftDisabled={
+            isDraftComplete ||
+            !canDraftForCurrentPicker ||
+            (supabasePicks || []).some(
+              p => p.sport === selectedTeamInfo.sport && p.team_name === selectedTeamInfo.team
+            ) ||
+            isPickerSportFull(selectedTeamInfo.sport)
+          }
         />
       )}
 

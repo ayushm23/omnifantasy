@@ -146,7 +146,7 @@ const EVENT_RESULT_META = {
   none:           { label: 'Did not place',  color: 'text-slate-500',   bg: 'bg-slate-800/40 border-slate-700/20',   icon: '—'  },
 };
 
-export default function TeamPopup({ sport, team, currentEP, onClose }) {
+export default function TeamPopup({ sport, team, currentEP, onClose, onDraft, draftDisabled }) {
   const [activeTab, setActiveTab] = useState('ep');
   const [activeFrame, setActiveFrame] = useState('1W');
   const seasons = SPORT_SEASONS[sport];
@@ -571,6 +571,24 @@ export default function TeamPopup({ sport, team, currentEP, onClose }) {
           )}
 
         </div>
+
+        {/* Draft button footer — only shown when opened from DraftView */}
+        {onDraft && (
+          <div className="px-5 py-4 border-t border-slate-700/60 shrink-0">
+            <button
+              onClick={onDraft}
+              disabled={draftDisabled}
+              className={`w-full py-2.5 rounded-xl text-sm font-bold transition-colors ${
+                draftDisabled
+                  ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                  : 'bg-green-600 hover:bg-green-500 text-white'
+              }`}
+            >
+              {draftDisabled ? 'Draft (not your turn)' : `Draft ${team}`}
+            </button>
+          </div>
+        )}
+
       </div>
     </div>
   );
