@@ -22,7 +22,7 @@ import { normalizeOddsApiName } from './utils/aliases';
 const API_BASE = 'https://api.the-odds-api.com/v4/sports';
 const CACHE_TTL = 2 * 24 * 60 * 60 * 1000; // 2 days
 // Bump this when the EP formula changes to invalidate stale cached values
-const CACHE_VERSION = 11;
+const CACHE_VERSION = 12;
 const DEFAULT_ODDS_REGIONS = 'us';
 const GLOBAL_ODDS_REGIONS = 'us,uk,eu,au';
 // Sports where global bookmaker regions give better odds coverage
@@ -86,7 +86,7 @@ export function calculateEP(winProbability) {
   const p = winProbability;
   const pTop2 = Math.min(1, 2 * p);
   const pTop4 = Math.min(1, 4 * p);
-  const pTop8 = Math.min(1, 10 * p);
+  const pTop8 = Math.min(1, 12 * p);
 
   const pChampion = p;
   const pRunnerUp = pTop2 - p;

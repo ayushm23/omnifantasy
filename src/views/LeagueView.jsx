@@ -1175,7 +1175,7 @@ const LeagueView = (props) => {
                     />
                     <div>
                       <div className="text-sm text-white">Auto-pick from queue</div>
-                      <div className="text-xs text-slate-400 mt-0.5">When it's your turn to pick in any draft, automatically select the top team from your queue</div>
+                      <div className="text-xs text-slate-400 mt-0.5">When it's your turn to pick in any draft, automatically select the top team from your queue immediately</div>
                     </div>
                   </label>
                 </div>

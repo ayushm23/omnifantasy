@@ -1244,7 +1244,7 @@ const DraftView = (props) => {
                       />
                       <div>
                         <div className="text-sm text-white">Auto-pick from queue</div>
-                        <div className="text-xs text-slate-400 mt-0.5">Automatically selects my top available queue pick 5 seconds after it becomes my turn (this league only)</div>
+                        <div className="text-xs text-slate-400 mt-0.5">Automatically selects my top available queue pick immediately when it becomes my turn (this league only)</div>
                       </div>
                     </label>
                   </div>

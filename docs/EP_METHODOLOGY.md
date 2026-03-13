@@ -174,14 +174,14 @@ F1 uses the end-of-season **Drivers' Championship standings** directly — no in
 
 - EP is cached in Supabase with a **2-day TTL**, shared across all users.
 - The first client to load after the cache expires claims a refresh lock, fetches new odds, and writes the cache — all subsequent clients read from Supabase.
-- `CACHE_VERSION = 11` (in `oddsApi.js`) is embedded in cached data. Bumping this version automatically invalidates stale cached values computed with the old formula.
+- `CACHE_VERSION = 12` (in `oddsApi.js`) is embedded in cached data. Bumping this version automatically invalidates stale cached values computed with the old formula.
 - NCAA Football uses **strict futures mode**: never serves stale cached EP — returns empty off-season to prevent outdated preseason odds from persisting year-round.
 
 ### Results Cache (`sport_results` table)
 
 - Final season results are cached in Supabase.
 - TTL: **30 days** once a sport is complete; **4 hours** while in progress.
-- `RESULTS_CACHE_VERSION = 2` (in `resultsApi.js`) invalidates pre-v2 cached Golf/Tennis results that used the old per-event scoring format.
+- `RESULTS_CACHE_VERSION = 3` (in `resultsApi.js`) invalidates pre-v3 cached Golf/Tennis results that used the old per-event scoring format.
 
 ---
 

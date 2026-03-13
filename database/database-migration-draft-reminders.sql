@@ -40,7 +40,7 @@ $$;
 -- ============================================================
 -- SELECT cron.schedule(
 --   'timer-reminder-check',
---   '*/15 * * * *',
+--   '* * * * *',
 --   $$
 --   SELECT net.http_post(
 --     url     := 'https://nrxfyxipvwvodalxkkqp.supabase.co/functions/v1/check-timer-reminders',

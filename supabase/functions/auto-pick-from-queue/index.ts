@@ -32,6 +32,7 @@ import {
   sendEmail,
   escapeHtml,
 } from '../_shared/draft-helpers.ts';
+import { getTeamPoolForSport } from '../_shared/team-pools.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -116,7 +117,27 @@ Deno.serve(async (req) => {
     const pickedKeys = new Set(
       (existingPicks || []).map(p => `${p.sport}::${p.team_name}`)
     );
-    const chosen = (queue || []).find(item => !pickedKeys.has(`${item.sport}::${item.team}`));
+    const draftEmails = draftOrder
+      .map(m => normalizeDraftPicker(m)?.email?.toLowerCase())
+      .filter(Boolean);
+    const sportRequirementEnabled = newState.draft_every_sport_required !== false;
+    const chosen = (queue || []).find(item => {
+      if (pickedKeys.has(`${item.sport}::${item.team}`)) return false;
+      if (!(league.sports || []).includes(item.sport)) return false;
+      const pool = getTeamPoolForSport(item.sport);
+      if (!pool || pool.length === 0) return false;
+      if (wouldBreakSportCoverage({
+        sportRequirementEnabled,
+        leagueSports: league.sports || [],
+        pool,
+        draftEmails,
+        picks: existingPicks || [],
+        pickerEmail: picker.email,
+        sport: item.sport,
+        team: item.team,
+      })) return false;
+      return true;
+    });
     if (!chosen) return skip('all queue items already drafted');
 
     // Insert the pick
@@ -221,6 +242,52 @@ async function sendOtcEmailForNextPick(
   `;
 
   await sendEmail({ to: nextPicker.email, subject, text, html });
+}
+
+function wouldBreakSportCoverage({
+  sportRequirementEnabled,
+  leagueSports,
+  pool,
+  draftEmails,
+  picks,
+  pickerEmail,
+  sport,
+  team,
+}: {
+  sportRequirementEnabled: boolean;
+  leagueSports: string[];
+  pool: string[];
+  draftEmails: string[];
+  picks: Array<{ sport: string; team_name: string; picker_email: string }>;
+  pickerEmail: string;
+  sport: string;
+  team: string;
+}): boolean {
+  if (!sportRequirementEnabled) return false;
+  if (!(leagueSports || []).includes(sport)) return false;
+  const pickerEmailLower = pickerEmail?.toLowerCase();
+  if (!pickerEmailLower) return false;
+  if (!draftEmails || draftEmails.length === 0) return false;
+  if (!pool || pool.length === 0) return false;
+
+  const pickedInSport = new Set(
+    (picks || []).filter(p => p.sport === sport).map(p => p.team_name)
+  );
+  let remainingAfterPick = pool.filter(teamName => !pickedInSport.has(teamName)).length;
+  if (!pickedInSport.has(team)) {
+    remainingAfterPick = Math.max(0, remainingAfterPick - 1);
+  }
+
+  let membersStillNeedingSportAfterPick = 0;
+  for (const email of draftEmails) {
+    const alreadyHasSport = (picks || []).some(
+      p => p.picker_email?.toLowerCase() === email && p.sport === sport
+    );
+    const hasSportAfterPick = alreadyHasSport || email === pickerEmailLower;
+    if (!hasSportAfterPick) membersStillNeedingSportAfterPick += 1;
+  }
+
+  return remainingAfterPick < membersStillNeedingSportAfterPick;
 }
 
 function skip(reason: string) {

@@ -29,7 +29,7 @@ const corsHeaders = {
 };
 
 const ONE_HOUR_MS    = 60 * 60 * 1000;
-const CRON_WINDOW_MS = 16 * 60 * 1000; // 16-min window catches every 15-min cron tick
+const CRON_WINDOW_MS = 2 * 60 * 1000; // 2-min window for 1-min cron tick
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -394,6 +394,7 @@ function getQueueAutopick(
   for (const item of queue) {
     if (pickedSet.has(`${item.sport}::${item.team}`)) continue;
     const pool = getTeamPoolForSport(item.sport);
+    if (!pool || pool.length === 0) continue;
     if (wouldBreakSportCoverage({
       sportRequirementEnabled: draftState?.draft_every_sport_required !== false,
       leagueSports: league?.sports || [],
