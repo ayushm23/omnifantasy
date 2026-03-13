@@ -388,10 +388,8 @@ const OmnifantasyApp = () => {
       return basePool;
     }
 
-    const dynamicPoolSize = basePool.length || 24;
     const topTeamsByEP = Object.entries(sportEP)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, dynamicPoolSize)
       .map(([teamName]) => teamName);
 
     return topTeamsByEP.length > 0 ? topTeamsByEP : basePool;
