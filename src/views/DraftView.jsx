@@ -262,6 +262,13 @@ const DraftView = (props) => {
 
     const draftBoard = useMemo(() => generateDraftBoard(supabasePicks, currentUser?.email), [supabasePicks, currentUser?.email]);
 
+    const visibleQueue = useMemo(() =>
+      (queue || []).filter(item => !(supabasePicks || []).some(
+        p => p.sport === item.sport && p.team_name === item.team
+      )),
+      [queue, supabasePicks]
+    );
+
     const myPicks = useMemo(() =>
       (supabasePicks || []).filter(
         p => p.picker_email?.toLowerCase() === currentUser?.email?.toLowerCase()
@@ -565,11 +572,11 @@ const DraftView = (props) => {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold text-white">My Queue</span>
-                  {(queue?.length || 0) > 0 && (
-                    <span className="text-xs text-slate-400">({queue.length})</span>
+                  {visibleQueue.length > 0 && (
+                    <span className="text-xs text-slate-400">({visibleQueue.length})</span>
                   )}
                 </div>
-                {(queue?.length || 0) > 0 && (
+                {visibleQueue.length > 0 && (
                   <button
                     onClick={() => setShowClearQueueConfirm(true)}
                     className="text-xs px-2 py-1 text-slate-400 hover:text-red-400 border border-slate-600/50 hover:border-red-500/50 rounded transition-colors"
@@ -583,16 +590,13 @@ const DraftView = (props) => {
                   Queue error: {queueError.message || String(queueError)} — try again
                 </div>
               )}
-              {!(queue?.length) ? (
+              {visibleQueue.length === 0 ? (
                 <div className="text-sm text-slate-500 italic text-center py-2">
                   — Queue empty — click + on a team below to add it
                 </div>
               ) : (
                 <div className="space-y-1">
                   {(() => {
-                    const visibleQueue = queue.filter((item) => !(supabasePicks || []).some(
-                      (p) => p.sport === item.sport && p.team_name === item.team
-                    ));
                     return visibleQueue.map((item, idx) => {
                       const itemEp = getExpectedPoints(item.sport, item.team);
                       const canPickFromQueue = (
@@ -1567,7 +1571,7 @@ const DraftView = (props) => {
           }}
           draftDisabled={
             isDraftComplete ||
-            !canDraftForCurrentPicker ||
+            !isMyTurn ||
             (supabasePicks || []).some(
               p => p.sport === selectedTeamInfo.sport && p.team_name === selectedTeamInfo.team
             ) ||

@@ -196,13 +196,28 @@ export default function TeamPopup({ sport, team, currentEP, onClose, onDraft, dr
               )}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="shrink-0 ml-3 text-slate-400 hover:text-white transition-colors p-1 hover:bg-slate-700/50 rounded"
-            aria-label="Close"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2 shrink-0 ml-3">
+            {onDraft && (
+              <button
+                onClick={onDraft}
+                disabled={draftDisabled}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  draftDisabled
+                    ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-500 text-white'
+                }`}
+              >
+                {draftDisabled ? 'Not your turn' : 'Draft'}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white transition-colors p-1 hover:bg-slate-700/50 rounded"
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Tab bar */}
@@ -571,23 +586,6 @@ export default function TeamPopup({ sport, team, currentEP, onClose, onDraft, dr
           )}
 
         </div>
-
-        {/* Draft button footer — only shown when opened from DraftView */}
-        {onDraft && (
-          <div className="px-5 py-4 border-t border-slate-700/60 shrink-0">
-            <button
-              onClick={onDraft}
-              disabled={draftDisabled}
-              className={`w-full py-2.5 rounded-xl text-sm font-bold transition-colors ${
-                draftDisabled
-                  ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
-                  : 'bg-green-600 hover:bg-green-500 text-white'
-              }`}
-            >
-              {draftDisabled ? 'Draft (not your turn)' : `Draft ${team}`}
-            </button>
-          </div>
-        )}
 
       </div>
     </div>
