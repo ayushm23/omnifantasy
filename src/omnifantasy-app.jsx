@@ -861,6 +861,23 @@ const OmnifantasyApp = () => {
     setSelectedLeagueId(null);
   };
 
+  // While Supabase resolves the existing session, show a neutral loading screen
+  // so returning users (e.g. from OTC email links) never see the login form flash.
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <img src="/logo.png" alt="Omnifantasy" className="h-16 w-auto opacity-80" />
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Login/Signup Modal
   if (!isAuthenticated || showLoginModal) {
     return (
