@@ -368,8 +368,9 @@ const OmnifantasyApp = () => {
     window.history.replaceState({}, '', window.location.pathname);
 
     setSelectedLeagueId(targetLeagueId);
-    // Always navigate to draft view — draft view handles not-started and complete states
-    setCurrentView('draft');
+    // Draft active → draft view; not started or complete → league view
+    const isDraftActive = league.draftStarted && !league.draftComplete;
+    setCurrentView(isDraftActive ? 'draft' : 'league');
   }, [user, leaguesLoading, leagues]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getExpectedPoints = (sportCode, teamName) => {
