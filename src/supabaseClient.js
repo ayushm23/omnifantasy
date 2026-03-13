@@ -524,7 +524,7 @@ export const subscribeToLeague = (leagueId, callback) => {
     .subscribe();
 };
 
-export const subscribeToDraftPicks = (leagueId, callback) => {
+export const subscribeToDraftPicks = (leagueId, callback, statusCallback) => {
   return supabase
     .channel(`draft_picks:${leagueId}`)
     .on(
@@ -537,10 +537,10 @@ export const subscribeToDraftPicks = (leagueId, callback) => {
       },
       callback
     )
-    .subscribe();
+    .subscribe(statusCallback);
 };
 
-export const subscribeToDraftState = (leagueId, callback) => {
+export const subscribeToDraftState = (leagueId, callback, statusCallback) => {
   return supabase
     .channel(`draft_state:${leagueId}`)
     .on(
@@ -553,7 +553,7 @@ export const subscribeToDraftState = (leagueId, callback) => {
       },
       callback
     )
-    .subscribe();
+    .subscribe(statusCallback);
 };
 
 export const unsubscribe = (subscription) => {

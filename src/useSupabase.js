@@ -202,6 +202,14 @@ export const useLeagues = (userEmail) => {
     loadLeagues();
   }, [loadLeagues]);
 
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadLeagues();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [loadLeagues]);
+
   const createLeague = async (leagueData) => {
     const { data, error } = await createLeagueDB(leagueData);
     if (error) throw error;
@@ -257,11 +265,30 @@ export const useDraft = (leagueId) => {
 
     loadDraft();
 
-    // Subscribe to real-time updates
-    const picksSub = subscribeToDraftPicks(leagueId, () => loadDraft());
-    const stateSub = subscribeToDraftState(leagueId, () => loadDraft());
+    // Re-fetch whenever the tab becomes visible — catches stale state from
+    // backgrounded tabs where the WebSocket was silently dropped.
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadDraft();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // Re-fetch if a channel recovers after being disconnected (e.g. brief
+    // network interruption while the tab is active).
+    let channelWasLost = false;
+    const handleStatus = (status) => {
+      if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR' || status === 'CLOSED') {
+        channelWasLost = true;
+      } else if (status === 'SUBSCRIBED' && channelWasLost) {
+        channelWasLost = false;
+        loadDraft();
+      }
+    };
+
+    const picksSub = subscribeToDraftPicks(leagueId, () => loadDraft(), handleStatus);
+    const stateSub = subscribeToDraftState(leagueId, () => loadDraft(), handleStatus);
 
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
       unsubscribe(picksSub);
       unsubscribe(stateSub);
     };
