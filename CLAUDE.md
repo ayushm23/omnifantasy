@@ -10,7 +10,7 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - Backend: Supabase (PostgreSQL + Real-time)
 - Authentication: Supabase Auth (Email/Password)
 - Icons: Lucide React
-- Odds Data: The Odds API (free tier, 500 credits/month) + custom scraper for F1/Tennis
+- Odds Data: The Odds API (free tier, 500 credits/month) + custom scraper for F1 only
 
 ## Key Files
 
@@ -24,7 +24,7 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `src/utils/points.js` - Point-calculation utilities: `calculatePickPoints`, `computeStandingsFromPicks`, `filterResultsForLeague`, `getPartialMultiEventPoints`
 - `src/utils/userDisplay.js` - User display helpers: `getUserDisplayName(user)` (first/last name from metadata, falls back to email prefix); `getUserInitials(user)` for avatar initials
 - `src/utils/format.js` - `formatHourLabel(hour)` converts 24-hour integer to 12-hour AM/PM string; `formatTimeRemaining(ms)` converts milliseconds to a human-readable countdown string (e.g. `"3h 12m"`, `"45s"`)
-- `src/hooks/useAutoPickLogic.js` - Extracted auto-pick hook. Manages both auto-pick effects (timer expiry + immediate queue pick). Returns `{ cancelAutoPickCountdown, autoPickCountdown }`. Internally tracks `lastAutoPickKeyRef`, `autoPickCountdownRef`, `prevCurrentPickRef` to prevent duplicate fires and mount-time false triggers.
+- `src/hooks/useAutoPickLogic.js` - Extracted auto-pick hook. Manages both auto-pick effects (timer expiry + immediate queue pick). Internally tracks `lastAutoPickKeyRef`, `prevCurrentPickRef`, `prevAutoPickFromQueueRef` to prevent duplicate fires and mount-time false triggers. Effect 2 also fires when `autoPickFromQueue` is enabled mid-turn (dep: `draftSettings?.autoPickFromQueue`).
 - `src/components/TimerDisplay.jsx` - Unified draft-timer display. Props: `{ timeRemaining, isPaused, pauseEndHour = 8, compact = false }`. `compact=true` → inline `<span>` (used in headers); `compact=false` → full block card (used in DraftView main timer). Paused state always shows resume time. Active: red+pulse <60s, yellow <5m, blue/green ≥5m.
 - `src/utils/aliases.js` - **Single source of truth for all team name alias maps.** `ODDS_API_ALIASES` (The Odds API → TEAM_POOLS), `ESPN_RESULT_ALIASES` (ESPN → TEAM_POOLS), `F1_NAME_ALIASES` (Jolpica diacritics). Exports `normalizeOddsApiName`, `normalizeResultName`, `normalizeF1Name`. Add new aliases here — consumers auto-pick them up.
 - `src/context/AppContext.jsx` - React context shared by DraftView and LeagueView. Provides the ~22 props common to both views (including `epLoading`). Provider wraps each view return in `omnifantasy-app.jsx`. Consume with `useAppContext()` hook.
@@ -36,7 +36,7 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `src/oddsScraper.js` - Data fetcher for sports not on The Odds API (F1, Men's Tennis, Women's Tennis). F1 uses Jolpica API mid-season, all use market-derived preseason odds as fallback.
 - `src/useExpectedPoints.js` - React hook that wraps `oddsApi.js` for component use. Returns `{ expectedPoints, loading, error, refreshExpectedPoints }`. `loading` is exposed as `epLoading` in `omnifantasy-app.jsx` and passed via `AppContext`.
 - `src/useTeamNews.js` - Fetches recent news from ESPN API for a team/sport. Returns `{ news: [], hasTeamNews: bool, loading }`. Searches headlines for team name; falls back to top sport headlines. 10-minute in-memory cache.
-- `src/useTeamPerformance.js` - Hook: `useTeamPerformance(sport, team)` → `{ performance, loading }`. Fetches the most recently completed season's result for a team from `sport_results` DB. For current in-progress seasons, fetches the prior completed season. Returns `{ type: 'single'|'multi'|'f1', season, result, isComplete, ... }`. Used in TeamPopup Performance tab.
+- `src/useTeamPerformance.js` - Hook: `useTeamPerformance(sport, team, selectedSeason = null)` → `{ performance, loading }`. When `selectedSeason` is provided (SPORT_SEASONS year convention), fetches that exact season; otherwise auto-selects the most recently completed season. `END_YEAR_SPORTS = ['NBA','NHL','NCAAMB','UCL']` subtract 1 to convert ESPN end-year to DB start-year. Returns `{ type: 'single'|'multi'|'f1', season, result, isComplete, ... }`. Used in TeamPopup Performance tab — season selector drives this hook.
 - `src/useTeamRecord.js` - Hook: `useTeamRecord(sport, team, season)` → `{ record, loading, error }`. Fetches live season W-L standings from ESPN standings API or Jolpica (F1). 1-hour localStorage cache. Exports `SPORT_SEASONS` (per-sport `{ current, previous, currentLabel, previousLabel, seasonStarted, currentComplete }`). Returns `{ type: 'team', wins, losses, otLosses, ties, playoffSeed, division }` or `{ type: 'f1', position, points, wins, total }`. Skips Golf/Tennis/Euro/WorldCup (returns null).
 - `database/database-setup.sql` - Complete database schema with RLS policies
 - `database/database-migration-timer.sql` - Migration for `pick_started_at` column (draft timer)
@@ -161,24 +161,24 @@ Instead of naive `p × 270`, EP is calculated using a positional probability mod
 
 ```javascript
 // Given win probability p:
-P(top 2) = min(1, 2p), P(top 4) = min(1, 4p), P(top 8) = min(1, 8p)
+P(top 2) = min(1, 2p), P(top 4) = min(1, 4p), P(top 8) = min(1, 12p)
 EP = P(champ)×80 + P(runner-up)×50 + P(semifinalist)×30 + P(quarterfinalist)×20
 ```
 
-This correctly sums to 270 total EP across all teams for uniform distributions, and prevents any single team from exceeding 80 EP (the champion's actual point award).
+The 12p coefficient for P(top 8) is intentionally higher than uniform distribution (8p) to reflect that playoff-caliber teams reach the conference semis ~60% of the time. This prevents undervaluing mid-tier contenders.
 
 ### Cache Versioning
 
-Cached EP data includes a `_v` field set to `CACHE_VERSION` (currently **7**). When the EP formula changes, bump `CACHE_VERSION` in `oddsApi.js` to automatically invalidate stale cached values computed with the old formula.
+Cached EP data includes a `_v` field set to `CACHE_VERSION` (currently **11**). When the EP formula changes, bump `CACHE_VERSION` in `oddsApi.js` to automatically invalidate stale cached values computed with the old formula.
 
 ### API Budget
 
 - **Free tier**: 500 credits/month
-- **~11 API calls per refresh** (9 single-event sports + 4 Golf majors = 13, minus seasonal gaps)
-- **2-day TTL** → ~15 refreshes/month → **~165 credits/month**
-- ~335 credits headroom
-- F1/Tennis use free APIs or hardcoded odds — no Odds API credits consumed
-- UCL, Euro, and WorldCup fetch odds from `us,uk,eu,au` regions (`GLOBAL_REGIONS_SPORTS`) for better coverage; all others use `us` only
+- **~19 API calls per refresh** (9 single-event sports + 4 Golf majors + 4 ATP slams + 4 WTA slams, minus seasonal gaps)
+- **2-day TTL** → ~15 refreshes/month → **~285 credits/month**
+- ~215 credits headroom
+- F1 uses free Jolpica API — no Odds API credits consumed
+- UCL, Euro, WorldCup, MensTennis, WomensTennis fetch odds from `us,uk,eu,au` regions (`GLOBAL_REGIONS_SPORTS`) for better coverage; all others use `us` only
 - NCAAF uses `STRICT_FUTURES_ONLY_SPORTS` mode: never serves stale cached EP — always returns empty off-season (prevents outdated preseason odds from persisting)
 
 ### EP Coverage by Sport
@@ -196,19 +196,18 @@ Cached EP data includes a `_v` field set to `CACHE_VERSION` (currently **7**). W
 | Golf | Working (4 majors aggregated) | Odds API: `golf_masters_tournament_winner`, etc. |
 | NCAAF | Seasonal (empty off-season) | Odds API: `americanfootball_ncaaf_championship_winner` |
 | F1 | Working (scraper) | Jolpica API mid-season, preseason market odds fallback |
-| Men's Tennis | Working (scraper) | Preseason market-derived odds in `oddsScraper.js` |
-| Women's Tennis | Working (scraper) | Preseason market-derived odds in `oddsScraper.js` |
+| Men's Tennis | Working | Odds API: 4 ATP slams aggregated; dead-zone fallback to `ATP_PRESEASON_ODDS` |
+| Women's Tennis | Working | Odds API: 4 WTA slams aggregated; dead-zone fallback to `WTA_PRESEASON_ODDS` |
 
 ### oddsScraper.js — Non-API Sports
 
-Handles F1, Men's Tennis, Women's Tennis (no Odds API coverage for these):
+Handles F1 only (Tennis moved to The Odds API):
 
-- **F1**: Fetches live driver standings from Jolpica API (`api.jolpi.ca`), converts championship points to win probabilities via softmax. Falls back to preseason market-derived odds during off-season or early season (<25 pts).
-- **Men's Tennis / Women's Tennis**: Uses hardcoded market-derived preseason implied probabilities (aggregated from major sportsbooks' futures). Update these at the start of each season.
-- All probabilities are normalized to sum to 1.0, then `calculateEP()` is applied.
-- Results cached in the same `odds_cache` table with the same 2-day TTL.
-- Currently using **2026 preseason odds** (`F1_PRESEASON_ODDS`, `ATP_ODDS`, `WTA_ODDS`) — update at start of each new season.
-- **API Football removed**: UCL was previously fetched via API Football as a fallback; it now uses The Odds API exclusively.
+- **F1**: Fetches live driver standings from Jolpica API (`api.jolpi.ca`), converts championship points to win probabilities via softmax. Falls back to `F1_PRESEASON_ODDS` during off-season or early season (<25 pts).
+- **`getPreseasonFallbackEP(sportCode)`** — exported for use by `oddsApi.js`. Returns `{ playerName: ep }` for MensTennis/WomensTennis using `ATP_PRESEASON_ODDS`/`WTA_PRESEASON_ODDS` when all 4 slam markets are dark AND no stale cache exists.
+- `calculateEPFromProb(p)` mirrors `calculateEP` in `oddsApi.js` (duplicated to avoid circular import) — keep in sync.
+- Currently using **2026 preseason odds** (`F1_PRESEASON_ODDS`, `ATP_PRESEASON_ODDS`, `WTA_PRESEASON_ODDS`) — update at start of each new season.
+- **F1 2026 pool**: Colapinto, Lindblad, Perez, Bottas added; Doohan, Tsunoda removed. `F1_NAME_ALIASES` handles `"Andrea Kimi Antonelli"→"Kimi Antonelli"`, `"Alexander Albon"→"Alex Albon"`, `"Sergio Pérez"→"Sergio Perez"`.
 
 ### Team Name Normalization
 
@@ -220,7 +219,7 @@ All alias maps live in `src/utils/aliases.js` — **edit only there** when addin
 - NCAAMB: `"Duke Blue Devils"` → `"Duke"`, `"Alabama Crimson Tide"` → `"Alabama"`, etc.
 - UCL: `"Paris Saint Germain"` → `"Paris Saint-Germain"`, `"FC Barcelona"` → `"Barcelona"`, etc.
 - NCAAF: `"Oregon Ducks"` → `"Oregon"`, `"Penn State Nittany Lions"` → `"Penn State"`, etc.
-- F1: `"Nico Hülkenberg"` → `"Nico Hulkenberg"` (in `src/utils/aliases.js` `F1_NAME_ALIASES`, shared by `oddsScraper.js` and `resultsApi.js`)
+- F1: `"Nico Hülkenberg"→"Nico Hulkenberg"`, `"Andrea Kimi Antonelli"→"Kimi Antonelli"`, `"Alexander Albon"→"Alex Albon"`, `"Sergio Pérez"→"Sergio Perez"` (all in `F1_NAME_ALIASES`)
 
 Normalizer functions (`normalizeOddsApiName`, `normalizeResultName`, `normalizeF1Name`) are applied when building results from each API. If a team name from the API doesn't match our pool, no EP is shown for that option.
 
@@ -254,7 +253,7 @@ EP totals show an asterisk `*` with tooltip "Some picks lack odds data — EP to
 - **`getSportDisplayCode(sportCode)`** — Returns a short display label: `'MensTennis'` → `'ATP'`, `'WomensTennis'` → `'WTA'`, all others unchanged.
 - **`getSelectableSports(sports, year?)`** — Filters sports list by `isTournamentYear()` (gates Euro/World Cup to correct years)
 - **`isTournamentYear(sportCode, year?)`** — Returns `false` for Euro/WorldCup in non-tournament years; `true` for all other sports
-- **`EP_DRIVEN_POOL_SPORTS`** — `Set` of sport codes where team pool ordering is EP-driven: `['UCL', 'Euro', 'WorldCup', 'Golf', 'MensTennis', 'WomensTennis', 'F1']`
+- **`EP_DRIVEN_POOL_SPORTS`** — `Set` of sport codes where the draft pool is derived entirely from EP data (sorted by EP, no static size cap): `['UCL', 'Euro', 'WorldCup', 'Golf', 'MensTennis', 'WomensTennis', 'F1']`. `TEAM_POOLS` is the fallback when EP hasn't loaded. This means WorldCup automatically includes all 48 2026 qualifiers from the odds without manual pool maintenance.
 
 ### `src/utils/draft.js`
 
@@ -603,8 +602,7 @@ VITE_ODDS_API_KEY=your_odds_api_key
 ## Future / Planned
 
 - Update preseason market odds in `oddsScraper.js` at start of each new season (F1, ATP, WTA)
-- Switch F1/Tennis to The Odds API if/when they add outright winner markets
-- Draft chat functionality
+- Switch F1 to The Odds API if/when they add outright winner markets
 - League history and statistics
 
 ## Implemented Features (reference)
@@ -625,7 +623,14 @@ These were previously deferred and are now shipped:
 - **Mobile responsiveness** — Hamburger nav menu on `< md` screens; draft queue as bottom sheet on mobile; standings as tap-to-expand cards on mobile; Sports catalog as bottom-anchored sheet on mobile; compact Big Board card grid with responsive columns
 - **Big Board compact cards** — Tighter padding, thinner border, responsive column grid (2/3/4/5 cols by breakpoint)
 - **API Football removed** — UCL fallback via API Football was removed; UCL uses The Odds API exclusively
-- **2026 preseason odds** — `F1_PRESEASON_ODDS`, `ATP_ODDS`, `WTA_ODDS` in `oddsScraper.js` updated for 2026 season; F1 pool includes Liam Lawson and Kimi Antonelli
+- **Tennis EP via Odds API** — MensTennis/WomensTennis moved from hardcoded scraper odds to live The Odds API (4 ATP/WTA slams aggregated, same multi-event pattern as Golf). `getPreseasonFallbackEP()` handles Oct–Nov dead zone when all slam markets are dark. `oddsScraper.js` now handles F1 only.
+- **EP model 12p** — `P(top 8) = min(1, 12p)` gives ~60% conf-semis probability for a 5% title team; `CACHE_VERSION = 11`
+- **EP pool fully dynamic** — `getDraftPoolForSport` no longer caps at static pool size for EP_DRIVEN_POOL_SPORTS; WorldCup automatically reflects all 48 2026 qualifiers
+- **F1 2026 pool/aliases updated** — Colapinto, Lindblad, Perez, Bottas added; Doohan, Tsunoda removed; F1_NAME_ALIASES covers Antonelli, Albon, Pérez name formats from Jolpica
+- **Auto-pick mid-turn fix** — enabling `autoPickFromQueue` while it's already your turn now triggers immediate pick (Effect 2 watches `draftSettings?.autoPickFromQueue`)
+- **Duplicate timer removed** — "Your Turn!" label in DraftView no longer shows a second timer (dedicated timer block already present)
+- **useTeamPerformance selectedSeason** — hook accepts `selectedSeason` param; TeamPopup Performance tab season selector drives it
+- **2026 preseason odds** — `F1_PRESEASON_ODDS`, `ATP_PRESEASON_ODDS`, `WTA_PRESEASON_ODDS` in `oddsScraper.js` updated for 2026 season
 - **docs/ folder** — `docs/EP_METHODOLOGY.md` (EP calculation, data sources, caching, API budget) and `docs/ARCHITECTURE.md` (high-level system architecture). Moved from project root March 2026.
 - **Database folder** — All SQL files organized under `database/` subfolder
 - **League invite/accept flow** — `league_members.status` (pending/accepted/declined); invite emails via Edge Function; Accept/Decline on home cards; member management panel in LeagueView; draft start blocked until all members accepted
