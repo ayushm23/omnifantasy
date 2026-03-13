@@ -31,6 +31,7 @@ export function useAutoPickLogic({
 }) {
   const lastAutoPickKeyRef = useRef(null);
   const prevCurrentPickRef = useRef(null);
+  const prevAutoPickFromQueueRef = useRef(!!draftSettings?.autoPickFromQueue);
 
   // Refs kept in sync every render so Effect 2 always reads the latest values.
   // Effect 2's dep array is intentionally minimal (currentPick/currentRound only)
@@ -229,11 +230,15 @@ export function useAutoPickLogic({
   useEffect(() => {
     const runImmediateAutoPick = async () => {
       const currentPick = supabaseDraftStateRef.current?.currentPick;
+      const autoPickEnabled = !!draftSettingsRef.current?.autoPickFromQueue;
+      const autoPickJustEnabled = autoPickEnabled && !prevAutoPickFromQueueRef.current;
+      prevAutoPickFromQueueRef.current = autoPickEnabled;
 
-      // Skip if this is a re-run for the same pick number (no-op guard).
+      // Fire if pick advanced OR if auto-pick from queue was just enabled mid-turn.
       // null !== currentPick is true on mount, so the page-load case fires.
-      if (prevCurrentPickRef.current === currentPick) return;
-      prevCurrentPickRef.current = currentPick ?? null;
+      const pickAdvanced = prevCurrentPickRef.current !== currentPick;
+      if (!pickAdvanced && !autoPickJustEnabled) return;
+      if (pickAdvanced) prevCurrentPickRef.current = currentPick ?? null;
 
       const draftState = supabaseDraftStateRef.current;
       const user       = currentUserRef.current;
@@ -292,7 +297,7 @@ export function useAutoPickLogic({
 
     runImmediateAutoPick();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabaseDraftState?.currentPick, supabaseDraftState?.currentRound]);
+  }, [supabaseDraftState?.currentPick, supabaseDraftState?.currentRound, draftSettings?.autoPickFromQueue]);
 
   return {};
 }
