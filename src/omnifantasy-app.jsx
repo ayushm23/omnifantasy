@@ -354,10 +354,6 @@ const OmnifantasyApp = () => {
     if (!targetLeagueId) return;
     if (!user || leaguesLoading) return;
 
-    // Clean the URL param so refreshing doesn't re-trigger
-    window.history.replaceState({}, '', window.location.pathname);
-    pendingDraftLeagueIdRef.current = null;
-
     const league = leagues.find(l => l.id === targetLeagueId);
     if (!league) return;
 
@@ -367,9 +363,13 @@ const OmnifantasyApp = () => {
     const isCommissioner = league.commissionerEmail?.toLowerCase() === user.email.toLowerCase();
     if (!isMember && !isCommissioner) return;
 
+    // Only clear the ref and URL once we know we're navigating
+    pendingDraftLeagueIdRef.current = null;
+    window.history.replaceState({}, '', window.location.pathname);
+
     setSelectedLeagueId(targetLeagueId);
-    // Navigate to draft if active, otherwise league view
-    setCurrentView(league.draftStarted ? 'draft' : 'league');
+    // Always navigate to draft view — draft view handles not-started and complete states
+    setCurrentView('draft');
   }, [user, leaguesLoading, leagues]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getExpectedPoints = (sportCode, teamName) => {
