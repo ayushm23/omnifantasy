@@ -30,6 +30,7 @@ OmniFantasy is a multi-sport fantasy draft app (teams, not players) built with R
 - `src/supabaseClient.js` — DB operations
 - `database/` — schema + migrations
 - `supabase/functions/` — Edge Functions for email + server-side auto-pick
+- `shared/team-pools.json` — shared team pools (client + Edge Functions)
 - `docs/ARCHITECTURE.md` — system diagrams
 - `docs/EP_METHODOLOGY.md` — EP model, scoring, caching
 
@@ -41,7 +42,8 @@ OmniFantasy is a multi-sport fantasy draft app (teams, not players) built with R
 
 ## Draft + Auto-Pick Notes
 - `draft_state.draft_order` entries may be email strings or `{ email, name }`. Normalize before use.
-- Server-side auto-pick runs in `supabase/functions/auto-pick-from-queue` and relies on a unique `(league_id, pick_number)` constraint.
+- Server-side auto-pick runs in `supabase/functions/auto-pick-from-queue` (queue-only, enforces sport coverage) and relies on a unique `(league_id, pick_number)` constraint.
+- Server-side timer-expiry auto-pick runs in `supabase/functions/check-timer-reminders` (queue first, EP fallback) and is scheduled via pg_cron every minute for near real-time picks.
 
 ## Data/Scoring Highlights
 - Base scoring: 80/50/30/30/20/20/20/20 for top-8.

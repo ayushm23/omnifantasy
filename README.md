@@ -98,7 +98,7 @@ supabase secrets set SMTP_HOST=... SMTP_PORT=587 SMTP_USER=... SMTP_PASS=... SMT
 supabase secrets set APP_URL=https://your-app-url.com
 ```
 
-The `check-timer-reminders` function must also be scheduled via pg_cron (see `database/database-migration-draft-reminders.sql` comments).
+The `check-timer-reminders` function must also be scheduled via pg_cron (every minute for near real-time auto-picks — see `database/database-migration-draft-reminders.sql` comments).
 
 ### 5. Run locally
 
@@ -127,9 +127,10 @@ npm run preview   # preview prod build
 - Live pick grid with Supabase Realtime (all browsers update instantly)
 - EP shown next to each team to guide picks
 - Personal draft queue — queue up picks in advance for auto-pick when it's your turn
-- Auto-pick from queue when the timer expires
+- Auto-pick from queue immediately when it becomes your turn (if enabled)
+- Server-side timer expiry auto-pick (queue first, EP fallback)
 - "You're on the clock" emails sent after each pick (per-user preference)
-- 1-hour warning emails via scheduled cron job
+- 1-hour warning emails via scheduled cron job (every minute)
 
 ### Standings & Points
 - Points auto-calculated from ESPN/Jolpica results — no manual entry
@@ -162,7 +163,7 @@ Omnifantasy/
       ConfirmModal.jsx          # Styled confirmation dialog
       SportBadge.jsx            # Sport label with color
     config/
-      sports.js                 # AVAILABLE_SPORTS, TEAM_POOLS, color helpers
+      sports.js                 # AVAILABLE_SPORTS, TEAM_POOLS (from shared JSON), color helpers
     utils/
       draft.js                  # Snake draft logic, picker index, formatting
       standings.js              # generateStandings()
@@ -191,10 +192,12 @@ Omnifantasy/
   supabase/
     functions/
       send-otc-email/           # Edge Function: "you're on the clock" emails
-      check-timer-reminders/    # Edge Function: 1-hour warning cron job
+      check-timer-reminders/    # Edge Function: 1-hour warning cron job + expiry auto-pick
       send-league-invite/       # Edge Function: member invite emails
       _shared/
         draft-helpers.ts        # Shared: getPickerIndex, computeDeadline, sendEmail
+  shared/
+    team-pools.json             # Shared team pools (client + Edge Functions)
   database/
     database-setup.sql          # Full schema + RLS policies
     database-migration-*.sql    # Individual migrations (run in order)

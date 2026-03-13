@@ -16,7 +16,7 @@ graph LR
     Browser -->|fetch EP odds| OddsAPI[The Odds API]
     Browser -->|fetch results| ESPN[ESPN API]
     Browser -->|fetch F1 data| Jolpica[Jolpica API]
-    Supabase -->|pg_cron every 15 min| EdgeFn[Edge Functions]
+    Supabase -->|pg_cron every 1 min| EdgeFn[Edge Functions]
     EdgeFn -->|SMTP| Gmail[Gmail SMTP]
     Gmail -->|delivers| Inbox[User Inboxes]
 ```
@@ -194,7 +194,7 @@ sequenceDiagram
     end
 
     Note over U,Ext: Flow D — 1-Hour Reminder (server-side)
-    EF->>DB: pg_cron fires every 15 min
+    EF->>DB: pg_cron fires every 1 min
     DB->>EF: active leagues with timers
     EF->>EF: computeTimeRemaining() pause-aware
     alt 60–76 min remaining + not already sent

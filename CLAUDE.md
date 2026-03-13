@@ -18,7 +18,8 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `src/omnifantasy-app.jsx` - Main application component: shared state, auth UI, home view, and modal orchestration
 - `src/views/LeagueView.jsx` - League detail page component (tabs: My Roster, Standings, Big Board, Draft Results; default tab: `'my-roster'`)
 - `src/views/DraftView.jsx` - Draft room component (live drafting interface with sport tabs and EP display). Has tab bar: **Pick** (draft grid), **Big Board** (all rosters), **Draft Results** (full pick list). Big Board and Draft Results tabs are always visible (not gated on draft completion). Mobile shows toast for locked pick reasons.
-- `src/config/sports.js` - Sports configuration: `AVAILABLE_SPORTS`, `TEAM_POOLS`, `EP_DRIVEN_POOL_SPORTS`, color helpers, `isTournamentYear`
+- `src/config/sports.js` - Sports configuration: `AVAILABLE_SPORTS`, `TEAM_POOLS` (loaded from shared JSON), `EP_DRIVEN_POOL_SPORTS`, color helpers, `isTournamentYear`
+- `shared/team-pools.json` - Shared team pools used by both client and Edge Functions
 - `src/utils/draft.js` - Draft helpers: `generateDraftBoard`, `formatPickNumber`, `getPickerIndex`, `normalizeDraftPicker`, `getCurrentPickerFromState`, `compareByEP`, `wouldBreakSportCoverage`, `picksUntilTurn`
 - `src/utils/standings.js` - `generateStandings(league, picks, currentUserEmail, results, previousRankMap)` helper
 - `src/utils/points.js` - Point-calculation utilities: `calculatePickPoints`, `computeStandingsFromPicks`, `filterResultsForLeague`, `getPartialMultiEventPoints`
@@ -53,10 +54,10 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `database/database-migration-draft-picks-unique.sql` - Migration for `UNIQUE (league_id, pick_number)` constraint on `draft_picks` (race protection for server-side auto-pick)
 - `database/database-migration-member-status.sql` - Migration for `status` column on `league_members` (invite/accept flow)
 - `database/database-migration-draft-reminders.sql` - Migration for `draft_reminders` table (OTC/1h reminder dedup) + `get_user_otc_pref(p_email)` SECURITY DEFINER RPC + commented pg_cron setup
-- `supabase/functions/auto-pick-from-queue/index.ts` - Edge Function: **server-side auto-pick**. Triggered by a Supabase database webhook on `draft_state` UPDATE. When `current_pick` advances, checks if new picker has `auto_pick_from_queue` enabled → picks their first available queue item → advances `draft_state` → sends OTC email. Cascades naturally through consecutive auto-pick-enabled pickers. Race-safe: unique constraint on `(league_id, pick_number)` in `draft_picks` silently discards duplicate inserts (code `23505`). Requires `APP_URL` secret for email links. Webhook setup: Supabase Dashboard → Database → Webhooks → Table: `draft_state`, Event: Update, URL: `{SUPABASE_URL}/functions/v1/auto-pick-from-queue`, Header: `Authorization: Bearer {SERVICE_ROLE_KEY}`.
+- `supabase/functions/auto-pick-from-queue/index.ts` - Edge Function: **server-side auto-pick**. Triggered by a Supabase database webhook on `draft_state` UPDATE. When `current_pick` advances, checks if new picker has `auto_pick_from_queue` enabled → picks their first available queue item (enforces sport coverage rules) → advances `draft_state` → sends OTC email. Cascades naturally through consecutive auto-pick-enabled pickers. Race-safe: unique constraint on `(league_id, pick_number)` in `draft_picks` silently discards duplicate inserts (code `23505`). Requires `APP_URL` secret for email links. Webhook setup: Supabase Dashboard → Database → Webhooks → Table: `draft_state`, Event: Update, URL: `{SUPABASE_URL}/functions/v1/auto-pick-from-queue`, Header: `Authorization: Bearer {SERVICE_ROLE_KEY}`.
 - `supabase/functions/send-draft-start-email/index.ts` - Edge Function: emails **all accepted members** when a draft starts (fire-and-forget, no OTC preference check); link: `?draft={leagueId}`; called 2s after `startDraftDB` resolves via `sendDraftStartEmail(leagueId)` in `supabaseClient.js`
 - `supabase/functions/send-otc-email/index.ts` - Edge Function: emails next picker after each pick (fire-and-forget, 1.5s delay to avoid stale `draft_state`); checks **only** picker's `receive_otc_emails` via `get_user_otc_pref` RPC (league-level `send_otc_emails` is no longer checked by Edge Functions); link: `?draft={leagueId}`
-- `supabase/functions/check-timer-reminders/index.ts` - Edge Function: cron job (every 15 min); sends "1 hour left" reminder to pickers whose timer is within 1h of expiry; deduplicates via `draft_reminders` table; requires `APP_URL` secret
+- `supabase/functions/check-timer-reminders/index.ts` - Edge Function: cron job (every 1 min); sends "1 hour left" reminder to pickers whose timer is within 1h of expiry; performs timer-expiry auto-picks (queue first, EP fallback); deduplicates via `draft_reminders` table; requires `APP_URL` secret
 - `supabase/functions/_shared/draft-helpers.ts` - Shared Deno module: `getPickerIndex`, `normalizeDraftPicker`, `timerStringToMs`, `computeTimeRemaining` (pause-aware), `sendEmail`, `escapeHtml`
 - `src/useDraftQueue.js` - React hook for managing a user's personal draft queue and per-league draft settings. Returns `{ queue, settings, loading, error, addItem, removeItem, moveItem, reorderAll, clearAll, updateSettings, reload }`. Mutations use optimistic state updates with snapshot+restore rollback on DB failure; `error` is set on failure and cleared on the next mutation attempt. `reorderAll(reorderedItems)` bulk-reorders the queue optimistically and calls `reorderQueue` in `supabaseClient.js`.
 - `src/useEPHistory.js` - React hook: `useEPHistory(sportCode, teamName)` → `{ history: [{date, ep}], loading }`. Fetches EP trend data for a team from the `ep_history` table.
@@ -169,7 +170,7 @@ The 12p coefficient for P(top 8) is intentionally higher than uniform distributi
 
 ### Cache Versioning
 
-Cached EP data includes a `_v` field set to `CACHE_VERSION` (currently **11**). When the EP formula changes, bump `CACHE_VERSION` in `oddsApi.js` to automatically invalidate stale cached values computed with the old formula.
+Cached EP data includes a `_v` field set to `CACHE_VERSION` (currently **12**). When the EP formula changes, bump `CACHE_VERSION` in `oddsApi.js` to automatically invalidate stale cached values computed with the old formula.
 
 ### API Budget
 
@@ -624,7 +625,7 @@ These were previously deferred and are now shipped:
 - **Big Board compact cards** — Tighter padding, thinner border, responsive column grid (2/3/4/5 cols by breakpoint)
 - **API Football removed** — UCL fallback via API Football was removed; UCL uses The Odds API exclusively
 - **Tennis EP via Odds API** — MensTennis/WomensTennis moved from hardcoded scraper odds to live The Odds API (4 ATP/WTA slams aggregated, same multi-event pattern as Golf). `getPreseasonFallbackEP()` handles Oct–Nov dead zone when all slam markets are dark. `oddsScraper.js` now handles F1 only.
-- **EP model 12p** — `P(top 8) = min(1, 12p)` gives ~60% conf-semis probability for a 5% title team; `CACHE_VERSION = 11`
+- **EP model 12p** — `P(top 8) = min(1, 12p)` gives ~60% conf-semis probability for a 5% title team; `CACHE_VERSION = 12`
 - **EP pool fully dynamic** — `getDraftPoolForSport` no longer caps at static pool size for EP_DRIVEN_POOL_SPORTS; WorldCup automatically reflects all 48 2026 qualifiers
 - **F1 2026 pool/aliases updated** — Colapinto, Lindblad, Perez, Bottas added; Doohan, Tsunoda removed; F1_NAME_ALIASES covers Antonelli, Albon, Pérez name formats from Jolpica
 - **Auto-pick mid-turn fix** — enabling `autoPickFromQueue` while it's already your turn now triggers immediate pick (Effect 2 watches `draftSettings?.autoPickFromQueue`)
@@ -638,7 +639,7 @@ These were previously deferred and are now shipped:
 - **LeagueView tab reorder** — Tabs now: My Roster → Standings → Big Board → Draft Results; default tab is `'my-roster'`
 - **Draft Results tab** — Visible as soon as first pick is made (was gated on draft completion); card layout on mobile, table on desktop
 - **Mobile Draft Results** — Card layout on mobile, full table on desktop
-- **Golf/Tennis scoring overhaul** — Per-event 80/50/30/20 replaced with accumulation system: 8/5/3/2/1 per event → ranked → single Omnifantasy 80/50/30/20 award. `resultsApi.js` captures `ninth_to_sixteenth` (Golf T9-T16) and `round_of_sixteen` (Tennis R16 losers). `rankings[]` computed and stored in results. `RESULTS_CACHE_VERSION = 2` auto-invalidates old cache. `points.js` uses `rankings[]` if present; falls back to old per-event sum for legacy entries.
+- **Golf/Tennis scoring overhaul** — Per-event 80/50/30/20 replaced with accumulation system: 8/5/3/2/1 per event → ranked → single Omnifantasy 80/50/30/20 award. `resultsApi.js` captures `ninth_to_sixteenth` (Golf T9-T16) and `round_of_sixteen` (Tennis R16 losers). `rankings[]` computed and stored in results. `RESULTS_CACHE_VERSION = 3` auto-invalidates old cache. `points.js` uses `rankings[]` if present; falls back to old per-event sum for legacy entries.
 - **Partial mid-season standings** — `getPartialMultiEventPoints(pick, resultsMap)` returns `{ accumulated, eventsComplete, eventsTotal }` for in-progress Golf/Tennis. LeagueView My Roster and Big Board show `~N` accumulated points mid-season with hover tooltip showing events progress.
 - **Draft Rounds UX** — Settings panel shows recommended round count (sports + 5 flex), marks it with ★ in dropdown, quick-set link to jump to it, green confirmation when already at recommended.
 - **Start Draft confirmation modal enhanced** — Shows full settings review: member count, round count, sports (with color badges), format, draft order type, sport coverage flag, pick timer + pause window, full manual draft order if set. Scrollable.
