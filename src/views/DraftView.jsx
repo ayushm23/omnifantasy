@@ -495,20 +495,8 @@ const DraftView = (props) => {
                       <div className="text-sm text-slate-400">On the Clock</div>
                       <div className="text-xl font-bold text-white">{getMemberDisplayName(currentPicker)}</div>
                       {isMyTurn && (
-                        <div className="text-sm font-semibold text-green-400 mt-1 flex items-center gap-2 justify-end flex-wrap">
-                          <span>Your Turn!</span>
-                          {selectedLeague?.draftTimer && selectedLeague.draftTimer !== 'none' && (
-                            <TimerDisplay
-                              compact
-                              timeRemaining={timeRemaining}
-                              isPaused={isInPauseWindow(
-                                selectedLeague.draftTimer,
-                                selectedLeague?.timerPauseStartHour ?? 0,
-                                selectedLeague?.timerPauseEndHour ?? 8
-                              )}
-                              pauseEndHour={selectedLeague?.timerPauseEndHour ?? 8}
-                            />
-                          )}
+                        <div className="text-sm font-semibold text-green-400 mt-1">
+                          Your Turn!
                         </div>
                       )}
                       {!isMyTurn && (() => {
