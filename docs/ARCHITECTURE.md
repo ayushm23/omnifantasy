@@ -50,7 +50,7 @@ graph TB
     useChat --> supabaseClient
 
     useEP --> oddsApi[oddsApi.js]
-    useEP --> oddsScraper[oddsScraper.js\nF1 · ATP · WTA]
+    useEP --> oddsScraper[oddsScraper.js\nF1 only]
     useResults --> resultsApi[resultsApi.js]
 ```
 

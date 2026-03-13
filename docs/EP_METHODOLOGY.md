@@ -39,7 +39,7 @@ Rather than the naive `EP = p × 270`, a positional model is used that respects 
 ```
 P(reach top 2)  = min(1, 2p)
 P(reach top 4)  = min(1, 4p)
-P(reach top 8)  = min(1, 8p)
+P(reach top 8)  = min(1, 12p)   ← intentionally > 8p
 
 EP = p           × 80   (win championship)
    + P(top 2)    × 50   (runner-up)
@@ -51,6 +51,7 @@ EP = p           × 80   (win championship)
 - Under a uniform distribution (all teams equal), total EP across all teams sums to exactly 270 — matching the actual total points distributed.
 - No single team can exceed 80 EP (the champion's actual award).
 - The naive `p × 270` model over-rewards heavy favorites.
+- The `12p` coefficient for P(top 8) is intentionally higher than the uniform-distribution value of `8p`. Empirically, a team with ~5% title odds has roughly a 60% chance of reaching the conference semis/quarterfinals — `8p` understates this. `12p` produces more realistic mid-tier EP values.
 
 ---
 
@@ -69,8 +70,8 @@ EP = p           × 80   (win championship)
 | FIFA World Cup | The Odds API: `soccer_fifa_world_cup_winner` |
 | Golf | The Odds API: 4 majors aggregated (Masters, US Open, The Open, PGA Championship) |
 | F1 | Jolpica API (live standings mid-season) → softmax probabilities; falls back to preseason market odds |
-| Men's Tennis (ATP) | Preseason market-derived implied probabilities (hardcoded, updated each season) |
-| Women's Tennis (WTA) | Preseason market-derived implied probabilities (hardcoded, updated each season) |
+| Men's Tennis (ATP) | The Odds API: 4 ATP Grand Slam outright markets aggregated (`tennis_atp_aus_open_singles`, `tennis_atp_french_open`, `tennis_atp_wimbledon`, `tennis_atp_us_open`); dead-zone fallback to hardcoded preseason odds |
+| Women's Tennis (WTA) | The Odds API: 4 WTA Grand Slam outright markets aggregated (same pattern, `tennis_wta_*`); dead-zone fallback to hardcoded preseason odds |
 
 ---
 
@@ -148,7 +149,7 @@ Tennis follows the same structure as Golf, but at the 4 Grand Slams (Australian 
 
 ### EP for Tennis
 
-Tennis EP uses preseason market-derived implied probabilities (aggregated from major sportsbooks) converted with the standard positional model. Since there is no single "championship" odds market for the full season, these are approximations based on per-Slam win odds.
+Tennis EP is computed by averaging per-Slam EP across all Grand Slams that currently have live outright winner markets (same pattern as Golf). This keeps the EP scale equivalent to a single-event sport. During the Oct–Nov off-season when all 4 slam markets are dark, the system falls back to stale cached EP if available, then to hardcoded preseason market-derived odds as a last resort.
 
 ---
 
@@ -173,7 +174,7 @@ F1 uses the end-of-season **Drivers' Championship standings** directly — no in
 
 - EP is cached in Supabase with a **2-day TTL**, shared across all users.
 - The first client to load after the cache expires claims a refresh lock, fetches new odds, and writes the cache — all subsequent clients read from Supabase.
-- `CACHE_VERSION = 7` (in `oddsApi.js`) is embedded in cached data. Bumping this version automatically invalidates stale cached values computed with the old formula.
+- `CACHE_VERSION = 11` (in `oddsApi.js`) is embedded in cached data. Bumping this version automatically invalidates stale cached values computed with the old formula.
 - NCAA Football uses **strict futures mode**: never serves stale cached EP — returns empty off-season to prevent outdated preseason odds from persisting year-round.
 
 ### Results Cache (`sport_results` table)
@@ -187,11 +188,11 @@ F1 uses the end-of-season **Drivers' Championship standings** directly — no in
 ## API Budget
 
 - **Free tier**: 500 credits/month (The Odds API)
-- **~11–13 API calls per refresh** (9 single-event sports + 4 Golf majors, minus seasonal gaps)
-- **2-day TTL** → ~15 refreshes/month → ~165 credits/month used
-- ~335 credits headroom
-- F1 and Tennis use free APIs or hardcoded odds — no Odds API credits consumed
-- UCL, Euro, and World Cup fetch from `us,uk,eu,au` regions for better market coverage
+- **~19 API calls per refresh** (9 single-event sports + 4 Golf majors + 4 ATP slams + 4 WTA slams, minus seasonal gaps)
+- **2-day TTL** → ~15 refreshes/month → ~285 credits/month used
+- ~215 credits headroom
+- F1 uses free Jolpica API — no Odds API credits consumed
+- UCL, Euro, World Cup, MensTennis, and WomensTennis fetch from `us,uk,eu,au` regions (`GLOBAL_REGIONS_SPORTS`) for better market coverage
 
 ---
 
@@ -200,7 +201,7 @@ F1 uses the end-of-season **Drivers' Championship standings** directly — no in
 | File | Role |
 |------|------|
 | `src/oddsApi.js` | Fetches odds from The Odds API, runs positional model, manages EP cache |
-| `src/oddsScraper.js` | Handles F1 (Jolpica), ATP, and WTA odds outside The Odds API |
+| `src/oddsScraper.js` | Handles F1 (Jolpica softmax); provides `getPreseasonFallbackEP()` for Tennis dead-zone |
 | `src/resultsApi.js` | Fetches final results from ESPN/Jolpica, manages results cache |
 | `src/useExpectedPoints.js` | React hook wrapping `oddsApi.js` for component use |
 | `src/utils/aliases.js` | Team name normalization (API names → TEAM_POOLS names) |
