@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Plus, Users, X, Check, ArrowLeft, TrendingUp, TrendingDown, Minus, Trash2, Settings, Eye, EyeOff } from 'lucide-react';
-import { useAuth, useLeagues, useDraft } from './useSupabase';
+import { useAuth, useAdmin, useLeagues, useDraft } from './useSupabase';
 import { useExpectedPoints } from './useExpectedPoints';
 import { useResults } from './useResults';
 import { useDraftQueue } from './useDraftQueue';
@@ -30,6 +30,8 @@ import TeamPopup from './components/TeamPopup';
 import LeagueChat from './components/LeagueChat';
 import SportBadge from './components/SportBadge';
 import RulesModal from './components/RulesModal';
+import ReportIssueModal from './components/ReportIssueModal';
+import AdminInboxModal from './components/AdminInboxModal';
 
 const OmnifantasyApp = () => {
   const MAX_LEAGUE_MEMBERS = 20;
@@ -38,6 +40,7 @@ const OmnifantasyApp = () => {
   const { user, loading: authLoading, authMessage, signIn, signUp, signOut: handleLogoutDB, clearAuthMessage } = useAuth();
   const isAuthenticated = !!user;
   const currentUser = user;
+  const { isAdmin } = useAdmin(currentUser?.email);
 
   const [showLoginModal, setShowLoginModal] = useState(!user);
   const [loginEmail, setLoginEmail] = useState('');
@@ -85,6 +88,8 @@ const OmnifantasyApp = () => {
   const [homeSportsSortBy, setHomeSportsSortBy] = useState('ep');
   const [homeSportsSortDir, setHomeSportsSortDir] = useState('desc');
   const [showUserSettings, setShowUserSettings] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showAdminInbox, setShowAdminInbox] = useState(false);
   const [inviteActionLoading, setInviteActionLoading] = useState(null); // leagueId of in-flight accept/decline
   const [selectedHomeTeamInfo, setSelectedHomeTeamInfo] = useState(null); // { sport, team, currentEP }
   const homeTeamInfoFromSportsRef = useRef(false);
@@ -1128,6 +1133,20 @@ const OmnifantasyApp = () => {
                   📖 Rules
                 </button>
                 <button
+                  onClick={() => setShowReportModal(true)}
+                  className="text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
+                >
+                  🐞 Report Issue
+                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowAdminInbox(true)}
+                    className="text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
+                  >
+                    📥 Admin Inbox
+                  </button>
+                )}
+                <button
                   onClick={() => setShowHomeSportsModal(true)}
                   className="text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
                 >
@@ -1168,6 +1187,10 @@ const OmnifantasyApp = () => {
                       <div className="fixed inset-0 z-10" onClick={() => setShowHomeMobileMenu(false)} />
                       <div className="absolute right-0 top-full mt-1 w-44 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-20 overflow-hidden">
                         <button onClick={() => { setShowRulesModal(true); setShowHomeMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2">📖 Rules</button>
+                        <button onClick={() => { setShowReportModal(true); setShowHomeMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2">🐞 Report Issue</button>
+                        {isAdmin && (
+                          <button onClick={() => { setShowAdminInbox(true); setShowHomeMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2">📥 Admin Inbox</button>
+                        )}
                         <button onClick={() => { setShowHomeSportsModal(true); setShowHomeMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2">🏟️ Sports</button>
                         <button onClick={() => { setShowUserSettings(true); setShowHomeMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"><Settings size={14} /> Settings</button>
                         <div className="border-t border-slate-700">
@@ -2241,6 +2264,18 @@ const OmnifantasyApp = () => {
       )}
 
       <RulesModal show={showRulesModal} onClose={() => setShowRulesModal(false)} />
+      <ReportIssueModal
+        open={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        currentUser={currentUser}
+        selectedLeague={selectedLeague}
+        currentView={currentView}
+      />
+      <AdminInboxModal
+        open={showAdminInbox}
+        onClose={() => setShowAdminInbox(false)}
+        isAdmin={isAdmin}
+      />
       </div>
     );
   }
@@ -2258,6 +2293,11 @@ const OmnifantasyApp = () => {
       getDraftPoolForSport,
       allSportCodes: homeSportCodes,
       epLoading,
+      isAdmin,
+      showReportModal,
+      setShowReportModal,
+      showAdminInbox,
+      setShowAdminInbox,
       timeRemaining,
       formatTimeRemaining,
       isTimerPaused: isInPauseWindow(
@@ -2296,6 +2336,18 @@ const OmnifantasyApp = () => {
           onOpen={() => setShowLeagueChat(true)}
           onClose={() => setShowLeagueChat(false)}
         />
+        <ReportIssueModal
+          open={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          currentUser={currentUser}
+          selectedLeague={selectedLeague}
+          currentView={currentView}
+        />
+        <AdminInboxModal
+          open={showAdminInbox}
+          onClose={() => setShowAdminInbox(false)}
+          isAdmin={isAdmin}
+        />
       </AppContext.Provider>
     );
   }
@@ -2313,6 +2365,11 @@ const OmnifantasyApp = () => {
       draftSettings: myDraftSettings, onUpdateDraftSettings: updateDraftSettings,
       allSportCodes: homeSportCodes,
       epLoading,
+      isAdmin,
+      showReportModal,
+      setShowReportModal,
+      showAdminInbox,
+      setShowAdminInbox,
     };
     return (
       <AppContext.Provider value={appCtx}>
@@ -2349,6 +2406,18 @@ const OmnifantasyApp = () => {
           isOpen={showLeagueChat}
           onOpen={() => setShowLeagueChat(true)}
           onClose={() => setShowLeagueChat(false)}
+        />
+        <ReportIssueModal
+          open={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          currentUser={currentUser}
+          selectedLeague={selectedLeague}
+          currentView={currentView}
+        />
+        <AdminInboxModal
+          open={showAdminInbox}
+          onClose={() => setShowAdminInbox(false)}
+          isAdmin={isAdmin}
         />
       </AppContext.Provider>
     );

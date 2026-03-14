@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPickerIndex, normalizeDraftPicker, formatPickNumber } from '../utils/draft';
+import { getPickerIndex, normalizeDraftPicker, formatPickNumber, wouldBreakSportCoverage } from '../utils/draft';
 
 // ---------------------------------------------------------------------------
 // getPickerIndex
@@ -124,5 +124,60 @@ describe('formatPickNumber', () => {
 
   it('pads single-digit picks with a leading zero', () => {
     expect(formatPickNumber({ round: 2, pick_number: 7 }, 10)).toBe('2.07');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// wouldBreakSportCoverage
+// ---------------------------------------------------------------------------
+
+describe('wouldBreakSportCoverage', () => {
+  const baseParams = {
+    sportRequirementEnabled: true,
+    leagueSports: ['NBA'],
+    pool: ['A', 'B', 'C'],
+    draftEmails: ['a@example.com', 'b@example.com', 'c@example.com'],
+    picks: [],
+    pickerEmail: 'a@example.com',
+    sport: 'NBA',
+    team: 'A',
+  };
+
+  it('returns false when sport requirement is disabled', () => {
+    expect(wouldBreakSportCoverage({ ...baseParams, sportRequirementEnabled: false })).toBe(false);
+  });
+
+  it('returns false when sport is not in league sports', () => {
+    expect(wouldBreakSportCoverage({ ...baseParams, leagueSports: ['NFL'] })).toBe(false);
+  });
+
+  it('returns false when pool is empty', () => {
+    expect(wouldBreakSportCoverage({ ...baseParams, pool: [] })).toBe(false);
+  });
+
+  it('blocks a pick when remaining teams would be fewer than members still needing the sport', () => {
+    const params = {
+      ...baseParams,
+      pool: ['A', 'B'], // only 2 teams available
+      draftEmails: ['a@example.com', 'b@example.com', 'c@example.com'],
+      picks: [],
+      pickerEmail: 'a@example.com',
+      team: 'A',
+    };
+    // After A is picked: remaining teams = 1, members still needing sport = 2 (b,c)
+    expect(wouldBreakSportCoverage(params)).toBe(true);
+  });
+
+  it('allows a pick when remaining teams match members still needing the sport', () => {
+    const params = {
+      ...baseParams,
+      pool: ['A', 'B', 'C'], // 3 teams, 3 members
+      draftEmails: ['a@example.com', 'b@example.com', 'c@example.com'],
+      picks: [],
+      pickerEmail: 'a@example.com',
+      team: 'A',
+    };
+    // After A is picked: remaining teams = 2, members still needing sport = 2 (b,c)
+    expect(wouldBreakSportCoverage(params)).toBe(false);
   });
 });

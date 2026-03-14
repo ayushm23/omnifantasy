@@ -50,6 +50,48 @@ export const getCurrentUser = async () => {
   return user;
 };
 
+export const getIsAdmin = async (email) => {
+  if (!email) return { data: false, error: null };
+  const { data, error } = await supabase
+    .from('admins')
+    .select('email')
+    .eq('email', email.toLowerCase())
+    .maybeSingle();
+
+  if (error) return { data: false, error };
+  return { data: !!data, error: null };
+};
+
+export const createIssueReport = async (payload) => {
+  const { data, error } = await supabase
+    .from('issue_reports')
+    .insert([payload])
+    .select()
+    .single();
+
+  return { data, error };
+};
+
+export const getIssueReports = async () => {
+  const { data, error } = await supabase
+    .from('issue_reports')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  return { data, error };
+};
+
+export const updateIssueReportStatus = async (id, status) => {
+  const { data, error } = await supabase
+    .from('issue_reports')
+    .update({ status })
+    .eq('id', id)
+    .select()
+    .single();
+
+  return { data, error };
+};
+
 // Update global user metadata (e.g. receive_otc_emails).
 // Merges into existing metadata; onAuthStateChange will refresh currentUser automatically.
 export const updateUserMetadata = async (metadata) => {

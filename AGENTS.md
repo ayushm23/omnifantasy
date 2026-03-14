@@ -26,7 +26,7 @@ OmniFantasy is a multi-sport fantasy draft app (teams, not players) built with R
 - `src/utils/draft.js` — draft helpers (snake/3RR, picker logic)
 - `src/utils/points.js` — scoring (incl. Golf/Tennis/F1 special cases)
 - `src/utils/aliases.js` — **single source of truth for team name aliases**
-- `src/useSupabase.js` — hooks: `useAuth`, `useLeagues`, `useDraft`
+- `src/useSupabase.js` — hooks: `useAuth`, `useAdmin`, `useLeagues`, `useDraft`
 - `src/supabaseClient.js` — DB operations
 - `database/` — schema + migrations
 - `supabase/functions/` — Edge Functions for email + server-side auto-pick
@@ -64,7 +64,9 @@ Run after `database/database-setup.sql`:
 10. `database/database-migration-league-chat.sql`
 11. `database/database-migration-league-emoji.sql`
 12. `database/database-migration-member-status.sql`
-13. `database/database-migration-draft-reminders.sql`
+13. `database/database-migration-admins.sql`
+14. `database/database-migration-issue-reports.sql`
+15. `database/database-migration-draft-reminders.sql`
 
 ## Local Dev
 - `npm install`

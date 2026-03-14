@@ -9,6 +9,7 @@ import {
   signUpWithEmail,
   signOut as signOutDB,
   getCurrentUser,
+  getIsAdmin,
   onAuthStateChange,
   createLeague as createLeagueDB,
   getMyLeagues,
@@ -76,6 +77,31 @@ export const useAuth = () => {
   };
 
   return { user, loading, authMessage, signIn, signUp, signOut, clearAuthMessage };
+};
+
+// ============ ADMIN HOOK ============
+export const useAdmin = (userEmail) => {
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    if (!userEmail) {
+      setIsAdmin(false);
+      return;
+    }
+    setLoading(true);
+    getIsAdmin(userEmail).then(({ data, error }) => {
+      if (!active) return;
+      if (error) console.error('Error checking admin status:', error);
+      setIsAdmin(!!data);
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, [userEmail]);
+
+  return { isAdmin, loading };
 };
 
 // ============ LEAGUES HOOK ============

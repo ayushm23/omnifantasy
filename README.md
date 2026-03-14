@@ -80,6 +80,8 @@ database/database-migration-ep-history.sql
 database/database-migration-league-chat.sql
 database/database-migration-league-emoji.sql
 database/database-migration-member-status.sql
+database/database-migration-admins.sql
+database/database-migration-issue-reports.sql
 database/database-migration-draft-reminders.sql
 ```
 

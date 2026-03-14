@@ -33,7 +33,7 @@ const DraftView = (props) => {
     supabasePicks, getSportColor, getExpectedPoints, hasNoEPData,
     sportResults, refreshExpectedPoints, formatPick, myRoster, setCurrentView,
     draftSettings, onUpdateDraftSettings, receiveOtcEmails, setReceiveOtcEmails,
-    allSportCodes, epLoading,
+    allSportCodes, epLoading, setShowReportModal, setShowAdminInbox, isAdmin,
   } = useAppContext();
 
 
@@ -88,6 +88,27 @@ const DraftView = (props) => {
     const isPickerSportFull = (sport) =>
       pickerFlexRemaining <= 0 && currentPickerPicks.some(p => p.sport === sport);
     const isSportAvailableForPicker = (sport) => isSportSelectable(sport) && !isPickerSportFull(sport);
+
+    const myPicks = useMemo(() =>
+      (supabasePicks || []).filter(
+        p => p.picker_email?.toLowerCase() === currentUser?.email?.toLowerCase()
+      ),
+      [supabasePicks, currentUser]
+    );
+    const myMissingRequiredSports = useMemo(() =>
+      (selectedLeague?.sports || []).filter(
+        (sport) => !myPicks.some((p) => p.sport === sport)
+      ),
+      [selectedLeague?.sports, myPicks]
+    );
+    const myFlexRemaining = useMemo(() =>
+      Math.max(
+        0,
+        (selectedLeague?.draftRounds || 0) - myPicks.length - (sportRequirementEnabled ? myMissingRequiredSports.length : 0)
+      ),
+      [selectedLeague?.draftRounds, myPicks.length, myMissingRequiredSports.length, sportRequirementEnabled]
+    );
+    const isMySportFull = (sport) => myFlexRemaining <= 0 && myPicks.some(p => p.sport === sport);
     const [gridSportFilter, setGridSportFilter] = useState('ALL');
     const [gridSearch, setGridSearch] = useState('');
     const [gridAvailableOnly, setGridAvailableOnly] = useState(true);
@@ -161,10 +182,10 @@ const DraftView = (props) => {
           const alreadyPicked = !!pickedBy;
           const ep = getExpectedPoints(sport, team);
           const canPick = !isDraftComplete && isMyTurn && !alreadyPicked && !isPickerSportFull(sport);
-          const blocksRequiredSportCoverage = wouldBreakRequiredSportAvailability(currentPicker?.email, sport, team);
+          const blocksRequiredSportCoverage = wouldBreakRequiredSportAvailability(currentUser?.email, sport, team);
           // isPickable: sport slot not full and not yet drafted (for "Available only" filter)
           // isSportSelectable is intentionally excluded — "must draft missing sports first" is not a permanent lock
-          const isPickable = !isDraftComplete && !alreadyPicked && !isPickerSportFull(sport) && !blocksRequiredSportCoverage;
+          const isPickable = !isDraftComplete && !alreadyPicked && !isMySportFull(sport) && !blocksRequiredSportCoverage;
 
           return {
             sport,
@@ -209,10 +230,12 @@ const DraftView = (props) => {
       isDraftComplete,
       isMyTurn,
       currentPicker?.email,
+      currentUser?.email,
       effectiveDraftOrder,
       sportRequirementEnabled,
       selectableSports,
       pickerFlexRemaining,
+      myFlexRemaining,
       gridSportFilter,
       gridAvailableOnly,
       gridSearch,
@@ -267,13 +290,6 @@ const DraftView = (props) => {
         p => p.sport === item.sport && p.team_name === item.team
       )),
       [queue, supabasePicks]
-    );
-
-    const myPicks = useMemo(() =>
-      (supabasePicks || []).filter(
-        p => p.picker_email?.toLowerCase() === currentUser?.email?.toLowerCase()
-      ),
-      [supabasePicks, currentUser]
     );
 
     const makePick = async (sport, team) => {
@@ -387,6 +403,20 @@ const DraftView = (props) => {
                     📖 Rules
                   </button>
                   <button
+                    onClick={() => setShowReportModal(true)}
+                    className="shrink-0 text-slate-300 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md border border-slate-600/60 hover:bg-slate-700/50"
+                  >
+                    🐞 Report Issue
+                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => setShowAdminInbox(true)}
+                      className="shrink-0 text-slate-300 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md border border-slate-600/60 hover:bg-slate-700/50"
+                    >
+                      📥 Admin Inbox
+                    </button>
+                  )}
+                  <button
                     onClick={() => setShowSportsModal(true)}
                     className="shrink-0 text-slate-300 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md border border-slate-600/60 hover:bg-slate-700/50"
                   >
@@ -429,6 +459,10 @@ const DraftView = (props) => {
                         <div className="fixed inset-0 z-10" onClick={() => setShowMobileMenu(false)} />
                         <div className="absolute right-0 top-full mt-1 w-44 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-20 overflow-hidden">
                           <button onClick={() => { setShowRulesModal(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">📖 Rules</button>
+                          <button onClick={() => { setShowReportModal(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">🐞 Report Issue</button>
+                          {isAdmin && (
+                            <button onClick={() => { setShowAdminInbox(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">📥 Admin Inbox</button>
+                          )}
                           <button onClick={() => { setShowSportsModal(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">🏟️ Sports</button>
                           {!isDraftComplete && <button onClick={() => { setShowUserSettings(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"><Settings size={14} /> Settings</button>}
                           {selectedLeague?.commissionerEmail === currentUser?.email && supabasePicks?.length > 0 && (
@@ -746,7 +780,7 @@ const DraftView = (props) => {
                   const { sport, sportName, team, ep, alreadyPicked, pickedBy, canPick, blocksRequiredSportCoverage } = row;
                   const rowClass = alreadyPicked
                     ? 'text-slate-500 bg-slate-900/35'
-                    : !isDraftComplete && !isPickerSportFull(sport) && !blocksRequiredSportCoverage
+                    : !isDraftComplete && !isMySportFull(sport) && !blocksRequiredSportCoverage
                     ? 'text-white bg-slate-900/65'
                     : 'text-slate-500 bg-slate-900/45';
                   const queueEntry = queuePositionMap.get(`${sport}::${team}`);
@@ -771,10 +805,10 @@ const DraftView = (props) => {
                             ) : hasNoEPData(sport) ? (
                               <span className="text-xs text-slate-500">TBD</span>
                             ) : null}
-                            {isPickerSportFull(sport) || blocksRequiredSportCoverage ? (
+                            {isMySportFull(sport) || blocksRequiredSportCoverage ? (
                               <button
                                 className="flex items-center gap-1 text-xs text-amber-500/80 font-medium"
-                                onClick={(e) => { e.stopPropagation(); showLockToast(isPickerSportFull(sport) ? 'Sport slot filled — no flex picks remaining' : 'Would prevent covering all required sports'); }}
+                                onClick={(e) => { e.stopPropagation(); showLockToast(isMySportFull(sport) ? 'Sport slot filled — no flex picks remaining' : 'Would prevent covering all required sports'); }}
                               >
                                 🔒 Locked — tap for reason
                               </button>
@@ -849,15 +883,15 @@ const DraftView = (props) => {
                             ? (pickedBy?.picker_name || pickedBy?.picker_email?.split('@')[0] || 'Picked')
                             : isDraftComplete
                             ? 'Draft complete'
-                            : isPickerSportFull(sport) || blocksRequiredSportCoverage
+                            : isMySportFull(sport) || blocksRequiredSportCoverage
                             ? (
                               <span
                                 className="relative group/lock cursor-help"
-                                onClick={(e) => { e.stopPropagation(); showLockToast(isPickerSportFull(sport) ? 'Sport slot filled — no flex picks remaining' : 'Would prevent covering all required sports'); }}
+                                onClick={(e) => { e.stopPropagation(); showLockToast(isMySportFull(sport) ? 'Sport slot filled — no flex picks remaining' : 'Would prevent covering all required sports'); }}
                               >
                                 Locked
                                 <span className="pointer-events-none absolute bottom-full left-0 mb-1 px-2 py-1 bg-slate-700 text-slate-200 text-xs rounded opacity-0 group-hover/lock:opacity-100 transition-opacity z-50 w-max max-w-[180px] leading-snug">
-                                  {isPickerSportFull(sport)
+                                  {isMySportFull(sport)
                                     ? 'Sport slot filled — no flex picks remaining'
                                     : 'Would prevent covering all required sports'}
                                 </span>

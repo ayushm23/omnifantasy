@@ -31,7 +31,7 @@ const LeagueView = (props) => {
     selectedLeagueId, showRulesModal, supabasePicks, supabaseDraftState, setCurrentView,
     sportResults, resultsLoading, refreshExpectedPoints,
     receiveOtcEmails, setReceiveOtcEmails, draftSettings, onUpdateDraftSettings,
-    timeRemaining, isTimerPaused,
+    timeRemaining, isTimerPaused, setShowReportModal, setShowAdminInbox, isAdmin,
     getDraftPoolForSport, allSportCodes, epLoading,
   } = useAppContext();
   const isCommissioner = selectedLeague?.commissionerEmail === currentUser?.email;
@@ -137,6 +137,20 @@ const LeagueView = (props) => {
                   📖 Rules
                 </button>
                 <button
+                  onClick={() => setShowReportModal(true)}
+                  className="text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
+                >
+                  🐞 Report Issue
+                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowAdminInbox(true)}
+                    className="text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
+                  >
+                    📥 Admin Inbox
+                  </button>
+                )}
+                <button
                   onClick={() => setShowSportsModal(true)}
                   className="text-slate-400 hover:text-white text-sm transition-colors px-3 py-1.5 rounded-md hover:bg-slate-700/50"
                 >
@@ -180,6 +194,10 @@ const LeagueView = (props) => {
                       <div className="fixed inset-0 z-10" onClick={() => setShowMobileMenu(false)} />
                       <div className="absolute right-0 top-full mt-1 w-44 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-20 overflow-hidden">
                         <button onClick={() => { setShowRulesModal(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2">📖 Rules</button>
+                        <button onClick={() => { setShowReportModal(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2">🐞 Report Issue</button>
+                        {isAdmin && (
+                          <button onClick={() => { setShowAdminInbox(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2">📥 Admin Inbox</button>
+                        )}
                         <button onClick={() => { setShowSportsModal(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2">🏟️ Sports</button>
                         <button onClick={() => { setShowUserSettings(true); setShowMobileMenu(false); }} className="w-full text-left px-4 py-3 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"><Settings size={14} /> Settings</button>
                         <div className="border-t border-slate-700">
@@ -1162,7 +1180,7 @@ const LeagueView = (props) => {
                       <div className="text-sm text-white">On-the-clock email notifications</div>
                       <div className="text-xs text-slate-400 mt-0.5">Receive an email when it's your turn to pick, across all leagues</div>
                     </div>
-                  </label>
+                    </label>
                 </div>
                 <div>
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Draft Queue</h3>
@@ -1177,7 +1195,7 @@ const LeagueView = (props) => {
                       <div className="text-sm text-white">Auto-pick from queue</div>
                       <div className="text-xs text-slate-400 mt-0.5">When it's your turn to pick in any draft, automatically select the top team from your queue immediately</div>
                     </div>
-                  </label>
+                    </label>
                 </div>
               </div>
               <div className="mt-5 pt-4 border-t border-slate-700">

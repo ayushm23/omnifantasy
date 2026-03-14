@@ -53,6 +53,8 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `database/database-migration-league-emoji.sql` - Migration for `league_emoji TEXT DEFAULT '🏆'` column on `leagues`
 - `database/database-migration-draft-picks-unique.sql` - Migration for `UNIQUE (league_id, pick_number)` constraint on `draft_picks` (race protection for server-side auto-pick)
 - `database/database-migration-member-status.sql` - Migration for `status` column on `league_members` (invite/accept flow)
+- `database/database-migration-admins.sql` - Migration for `admins` table (platform admin access)
+- `database/database-migration-issue-reports.sql` - Migration for `issue_reports` table (bug/feature submissions)
 - `database/database-migration-draft-reminders.sql` - Migration for `draft_reminders` table (OTC/1h reminder dedup) + `get_user_otc_pref(p_email)` SECURITY DEFINER RPC + commented pg_cron setup
 - `supabase/functions/auto-pick-from-queue/index.ts` - Edge Function: **server-side auto-pick**. Triggered by a Supabase database webhook on `draft_state` UPDATE. When `current_pick` advances, checks if new picker has `auto_pick_from_queue` enabled → picks their first available queue item (enforces sport coverage rules) → advances `draft_state` → sends OTC email. Cascades naturally through consecutive auto-pick-enabled pickers. Race-safe: unique constraint on `(league_id, pick_number)` in `draft_picks` silently discards duplicate inserts (code `23505`). Requires `APP_URL` secret for email links. Webhook setup: Supabase Dashboard → Database → Webhooks → Table: `draft_state`, Event: Update, URL: `{SUPABASE_URL}/functions/v1/auto-pick-from-queue`, Header: `Authorization: Bearer {SERVICE_ROLE_KEY}`.
 - `supabase/functions/send-draft-start-email/index.ts` - Edge Function: emails **all accepted members** when a draft starts (fire-and-forget, no OTC preference check); link: `?draft={leagueId}`; called 2s after `startDraftDB` resolves via `sendDraftStartEmail(leagueId)` in `supabaseClient.js`
@@ -96,6 +98,7 @@ The app uses early-return `if` blocks in `omnifantasy-app.jsx` for view switchin
   - `useDraft(leagueId)` — draft state/picks for selected league, returns `{ draftState, picks, loading, startDraft, makePick, undoPick }`. `draftState` is camelCased: `{ currentPick, currentRound, draftOrder, isSnake, thirdRoundReversal, draftEverySportRequired, pickStartedAt }`. `undoPick(targetPickNumber?)` rolls back to any pick number (defaults to previous pick).
   - `useExpectedPoints(sportCodes)` — fetches EP for array of sport codes, returns `{ expectedPoints, loading, error, refreshExpectedPoints }`. `loading` is aliased as `epLoading` in `omnifantasy-app.jsx` and shared via `AppContext`. Call `refreshExpectedPoints()` to force a re-fetch.
   - `useDraftQueue(leagueId, userEmail)` — manages a user's personal draft queue and per-league draft settings. Returns `{ queue, settings, loading, error, addItem, removeItem, moveItem, reorderAll, clearAll, updateSettings, reload }`. `queue` is sorted by `position` ascending. `settings = { autoPickFromQueue: bool }`. Mounted in `omnifantasy-app.jsx` and props threaded through to `DraftView`. Note: `receiveOtcEmails` is a **global** preference stored in `user_metadata` (not per-league), managed via `updateUserMetadata()` from `supabaseClient.js`.
+  - `useAdmin(userEmail)` — checks if the user is a platform admin via the `admins` table. Returns `{ isAdmin, loading }`.
   - `useResults(sportCodes)` — fetches final sport results. Returns `{ results, loading, error, retryResults }`. Called in `omnifantasy-app.jsx`; `sportResults` and `resultsLoading` passed as props to `LeagueView`. `retryResults()` clears the error state before re-fetching.
   - `useEPHistory(sportCode, teamName)` — fetches EP trend data. Returns `{ history: [{date, ep}], loading }`. Used in `TeamPopup.jsx`.
   - `useTeamNews(sport, team)` — fetches recent ESPN news. Returns `{ news: [], hasTeamNews: bool, loading }`. Used in `TeamPopup.jsx`. 10-minute in-memory cache; team-name filtered with sport-level fallback.
@@ -123,6 +126,8 @@ setCurrentView('draft');
 7. **draft_queue** - `id`, `league_id`, `user_email`, `sport`, `team`, `position` (integer, 1-based), `created_at` — per-user ordered queue of teams to draft. UNIQUE `(league_id, user_email, sport, team)`. RLS: SELECT = any authenticated (commissioner reads picker's queue for autopick); INSERT/UPDATE/DELETE = own rows only.
 8. **draft_member_settings** - `(league_id, user_email)` PK, `auto_pick_from_queue` (bool, default false) — per-user per-league draft preferences. RLS: SELECT = any authenticated; INSERT/UPDATE = own rows only. Note: `receive_otc_emails` moved to Supabase `user_metadata` (global across leagues) — accessed via `currentUser.user_metadata.receive_otc_emails` and updated with `updateUserMetadata({ receive_otc_emails: bool })`.
 9. **ep_history** - `id` (BIGINT identity PK), `sport_code`, `snapshot_data` (JSONB — `{ 'Team Name': ep_value, ... }` for ALL teams at that moment), `captured_at` — one row per sport per odds refresh (~every 2 days). Index: `(sport_code, captured_at DESC)`. RLS: SELECT/INSERT = any authenticated.
+10. **admins** - `email` (PK), `created_at` — platform-level admin users (e.g., for “File a Feature” access). RLS: SELECT = own row only; writes intended for service role.
+11. **issue_reports** - `id`, `created_at`, `type`, `title`, `description`, `steps_to_reproduce`, `expected_behavior`, `actual_behavior`, `severity`, `area`, `status`, `reporter_email`, `reporter_name`, `league_id`, `view`, `user_agent`, `app_version`. RLS: INSERT = any authenticated; SELECT/UPDATE = admins only.
 
 ### Critical Database Notes
 
@@ -587,6 +592,9 @@ const pts = calculatePickPoints(pick, sportResults);
 10. `database/database-migration-league-chat.sql` — Creates `league_chat` table with RLS and index
 11. `database/database-migration-league-emoji.sql` — Adds `league_emoji TEXT DEFAULT '🏆'` to `leagues`
 12. `database/database-migration-member-status.sql` — Adds `status TEXT DEFAULT 'pending'` to `league_members`, backfills existing rows to `'accepted'`, adds self-update RLS policy
+13. `database/database-migration-admins.sql` — Creates `admins` table for platform-level admin access
+14. `database/database-migration-issue-reports.sql` — Creates `issue_reports` table for bug/feature submissions (admin-only read)
+15. `database/database-migration-draft-reminders.sql` — Creates `draft_reminders` table + OTC reminder RPC + pg_cron comment
 
 New columns added directly to `database/database-setup.sql` (no separate migration files):
 - `draft_rounds` on `leagues`
