@@ -41,12 +41,12 @@ export function useChatMessages(leagueId, userEmail, isOpen) {
       // Count messages from others that arrived since the user last had the panel open
       if (userEmail && data?.length) {
         const lastRead = localStorage.getItem(lastReadKey(leagueId, userEmail));
-        if (lastRead) {
-          const count = data.filter(
-            (m) => m.user_email !== userEmail && m.created_at > lastRead
-          ).length;
-          setUnreadCount(count);
-        }
+        const count = data.filter((m) => {
+          if (m.user_email === userEmail) return false;
+          if (!lastRead) return true;
+          return m.created_at > lastRead;
+        }).length;
+        setUnreadCount(count);
       }
     });
   }, [leagueId, userEmail]);
