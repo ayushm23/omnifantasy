@@ -66,7 +66,8 @@ Run after `database/database-setup.sql`:
 12. `database/database-migration-member-status.sql`
 13. `database/database-migration-admins.sql`
 14. `database/database-migration-issue-reports.sql`
-15. `database/database-migration-draft-reminders.sql`
+15. `database/database-migration-draft-manual-pick-hold.sql`
+16. `database/database-migration-draft-reminders.sql`
 
 ## Local Dev
 - `npm install`

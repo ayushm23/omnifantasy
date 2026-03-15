@@ -72,6 +72,9 @@ const DraftView = (props) => {
     const currentPickerPicks = (supabasePicks || []).filter(
       (p) => p.picker_email?.toLowerCase() === currentPickerEmail
     );
+    const manualPickPausedUntil = supabaseDraftState?.manualPickPausedUntil;
+    const manualPickHoldActive = !!manualPickPausedUntil && Date.now() < new Date(manualPickPausedUntil).getTime();
+    const shouldHoldManualPick = manualPickHoldActive && isMyTurn && !!draftSettings?.autoPickFromQueue;
     const missingRequiredSports = (selectedLeague?.sports || []).filter(
       (sport) => !currentPickerPicks.some((p) => p.sport === sport)
     );
@@ -181,7 +184,7 @@ const DraftView = (props) => {
           const pickedBy = pickedMap.get(`${sport}::${team}`) || null;
           const alreadyPicked = !!pickedBy;
           const ep = getExpectedPoints(sport, team);
-          const canPick = !isDraftComplete && isMyTurn && !alreadyPicked && !isPickerSportFull(sport);
+          const canPick = !isDraftComplete && isMyTurn && !alreadyPicked && !isPickerSportFull(sport) && !shouldHoldManualPick;
           const blocksRequiredSportCoverage = wouldBreakRequiredSportAvailability(currentUser?.email, sport, team);
           // isPickable: sport slot not full and not yet drafted (for "Available only" filter)
           // isSportSelectable is intentionally excluded — "must draft missing sports first" is not a permanent lock
@@ -297,6 +300,10 @@ const DraftView = (props) => {
         return;
       }
       if (!canDraftForCurrentPicker) {
+        return;
+      }
+      if (shouldHoldManualPick) {
+        setPickError('Auto-pick is running after rollback. Wait a moment or disable auto-pick to pick manually.');
         return;
       }
       if (isPickerSportFull(sport)) {
@@ -1609,7 +1616,8 @@ const DraftView = (props) => {
             (supabasePicks || []).some(
               p => p.sport === selectedTeamInfo.sport && p.team_name === selectedTeamInfo.team
             ) ||
-            isPickerSportFull(selectedTeamInfo.sport)
+            isPickerSportFull(selectedTeamInfo.sport) ||
+            shouldHoldManualPick
           }
         />
       )}
@@ -1689,7 +1697,7 @@ const DraftView = (props) => {
                         return visibleQueue.map((item, idx) => {
                           const itemEp = getExpectedPoints(item.sport, item.team);
                           const canPickFromQueue = (
-                            !isDraftComplete && isMyTurn &&
+                            !isDraftComplete && isMyTurn && !shouldHoldManualPick &&
                             !isPickerSportFull(item.sport) &&
                             !wouldBreakRequiredSportAvailability(currentPicker?.email, item.sport, item.team)
                           );

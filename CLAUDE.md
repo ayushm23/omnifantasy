@@ -55,10 +55,12 @@ OmniFantasy is a multi-sport fantasy league platform built with React, Vite, and
 - `database/database-migration-member-status.sql` - Migration for `status` column on `league_members` (invite/accept flow)
 - `database/database-migration-admins.sql` - Migration for `admins` table (platform admin access)
 - `database/database-migration-issue-reports.sql` - Migration for `issue_reports` table (bug/feature submissions)
+- `database/database-migration-draft-manual-pick-hold.sql` - Migration for `manual_pick_paused_until` on `draft_state` (prevents manual picks immediately after rollback while auto-pick runs)
 - `database/database-migration-draft-reminders.sql` - Migration for `draft_reminders` table (OTC/1h reminder dedup) + `get_user_otc_pref(p_email)` SECURITY DEFINER RPC + commented pg_cron setup
 - `supabase/functions/auto-pick-from-queue/index.ts` - Edge Function: **server-side auto-pick**. Triggered by a Supabase database webhook on `draft_state` UPDATE. When `current_pick` advances, checks if new picker has `auto_pick_from_queue` enabled → picks their first available queue item (enforces sport coverage rules) → advances `draft_state` → sends OTC email. Cascades naturally through consecutive auto-pick-enabled pickers. Race-safe: unique constraint on `(league_id, pick_number)` in `draft_picks` silently discards duplicate inserts (code `23505`). Requires `APP_URL` secret for email links. Webhook setup: Supabase Dashboard → Database → Webhooks → Table: `draft_state`, Event: Update, URL: `{SUPABASE_URL}/functions/v1/auto-pick-from-queue`, Header: `Authorization: Bearer {SERVICE_ROLE_KEY}`.
 - `supabase/functions/send-draft-start-email/index.ts` - Edge Function: emails **all accepted members** when a draft starts (fire-and-forget, no OTC preference check); link: `?draft={leagueId}`; called 2s after `startDraftDB` resolves via `sendDraftStartEmail(leagueId)` in `supabaseClient.js`
 - `supabase/functions/send-otc-email/index.ts` - Edge Function: emails next picker after each pick (fire-and-forget, 1.5s delay to avoid stale `draft_state`); checks **only** picker's `receive_otc_emails` via `get_user_otc_pref` RPC (league-level `send_otc_emails` is no longer checked by Edge Functions); link: `?draft={leagueId}`
+- `supabase/functions/send-issue-report-email/index.ts` - Edge Function: emails **all admins** when a new bug/feature report is submitted; called fire-and-forget from `ReportIssueModal` after insert
 - `supabase/functions/check-timer-reminders/index.ts` - Edge Function: cron job (every 1 min); sends "1 hour left" reminder to pickers whose timer is within 1h of expiry; performs timer-expiry auto-picks (queue first, EP fallback); deduplicates via `draft_reminders` table; requires `APP_URL` secret
 - `supabase/functions/_shared/draft-helpers.ts` - Shared Deno module: `getPickerIndex`, `normalizeDraftPicker`, `timerStringToMs`, `computeTimeRemaining` (pause-aware), `sendEmail`, `escapeHtml`
 - `src/useDraftQueue.js` - React hook for managing a user's personal draft queue and per-league draft settings. Returns `{ queue, settings, loading, error, addItem, removeItem, moveItem, reorderAll, clearAll, updateSettings, reload }`. Mutations use optimistic state updates with snapshot+restore rollback on DB failure; `error` is set on failure and cleared on the next mutation attempt. `reorderAll(reorderedItems)` bulk-reorders the queue optimistically and calls `reorderQueue` in `supabaseClient.js`.
@@ -120,7 +122,7 @@ setCurrentView('draft');
 1. **leagues** - `id`, `name`, `commissioner_email`, `sports[]`, `draft_rounds`, `draft_started`, `draft_timer`, `send_otc_emails`, `draft_date`, `timer_pause_start_hour`, `timer_pause_end_hour`, `league_emoji` (TEXT DEFAULT '🏆'), `created_at`
 2. **league_members** - `id`, `league_id`, `email`, `name`, `draft_position`, `status` (TEXT: `'pending'`|`'accepted'`|`'declined'`, DEFAULT `'pending'`), `joined_at`
 3. **draft_picks** - `id`, `league_id`, `pick_number`, `round`, `picker_email`, `picker_name`, `sport`, `team`, `team_name`, `created_at`
-4. **draft_state** - `league_id`, `current_pick`, `current_round`, `draft_order`, `is_snake`, `third_round_reversal`, `draft_every_sport_required`, `pick_started_at`, `updated_at`
+4. **draft_state** - `league_id`, `current_pick`, `current_round`, `draft_order`, `is_snake`, `third_round_reversal`, `draft_every_sport_required`, `pick_started_at`, `manual_pick_paused_until`, `updated_at`
 5. **odds_cache** - `sport_code` (PK), `data` (JSONB), `updated_at` — shared EP cache for all users
 6. **sport_results** - `(sport_code, season)` (PK), `results` (JSONB), `updated_at` — shared final results cache; automatically populated from ESPN/Jolpica APIs
 7. **draft_queue** - `id`, `league_id`, `user_email`, `sport`, `team`, `position` (integer, 1-based), `created_at` — per-user ordered queue of teams to draft. UNIQUE `(league_id, user_email, sport, team)`. RLS: SELECT = any authenticated (commissioner reads picker's queue for autopick); INSERT/UPDATE/DELETE = own rows only.
@@ -594,7 +596,8 @@ const pts = calculatePickPoints(pick, sportResults);
 12. `database/database-migration-member-status.sql` — Adds `status TEXT DEFAULT 'pending'` to `league_members`, backfills existing rows to `'accepted'`, adds self-update RLS policy
 13. `database/database-migration-admins.sql` — Creates `admins` table for platform-level admin access
 14. `database/database-migration-issue-reports.sql` — Creates `issue_reports` table for bug/feature submissions (admin-only read)
-15. `database/database-migration-draft-reminders.sql` — Creates `draft_reminders` table + OTC reminder RPC + pg_cron comment
+15. `database/database-migration-draft-manual-pick-hold.sql` — Adds `manual_pick_paused_until` to `draft_state` to briefly block manual picks after rollback
+16. `database/database-migration-draft-reminders.sql` — Creates `draft_reminders` table + OTC reminder RPC + pg_cron comment
 
 New columns added directly to `database/database-setup.sql` (no separate migration files):
 - `draft_rounds` on `leagues`

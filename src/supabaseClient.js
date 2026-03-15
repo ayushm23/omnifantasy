@@ -92,6 +92,18 @@ export const updateIssueReportStatus = async (id, status) => {
   return { data, error };
 };
 
+export const sendIssueReportEmail = async (reportId) => {
+  try {
+    if (!reportId) return;
+    const appUrl = window.location.origin;
+    await supabase.functions.invoke('send-issue-report-email', {
+      body: { reportId, appUrl },
+    });
+  } catch (e) {
+    console.warn('sendIssueReportEmail: failed', e);
+  }
+};
+
 // Update global user metadata (e.g. receive_otc_emails).
 // Merges into existing metadata; onAuthStateChange will refresh currentUser automatically.
 export const updateUserMetadata = async (metadata) => {

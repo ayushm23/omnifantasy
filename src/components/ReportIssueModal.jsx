@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
-import { createIssueReport } from '../supabaseClient';
+import { createIssueReport, sendIssueReportEmail } from '../supabaseClient';
 import { getUserDisplayName } from '../utils/userDisplay';
 
 const AREA_OPTIONS = [
@@ -91,6 +91,9 @@ const ReportIssueModal = ({
       return;
     }
 
+    if (data?.id) {
+      sendIssueReportEmail(data.id);
+    }
     setSuccessId(data?.id || '');
     setSubmitting(false);
   };
