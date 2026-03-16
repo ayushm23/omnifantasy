@@ -14,12 +14,15 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getLeagueChat, sendChatMessage, subscribeToLeagueChat, unsubscribe } from './supabaseClient';
 
 const lastReadKey = (leagueId, userEmail) => `chat_last_read_${leagueId}_${userEmail}`;
+const channelKey = (leagueId, userEmail) => `chat_read_channel_${leagueId}_${userEmail}`;
 
 export function useChatMessages(leagueId, userEmail, isOpen) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const isOpenRef = useRef(isOpen);
+  const lastReadRef = useRef(null);
+  const channelRef = useRef(null);
 
   // Keep ref in sync so the subscription callback always sees current value
   useEffect(() => {
@@ -41,6 +44,7 @@ export function useChatMessages(leagueId, userEmail, isOpen) {
       // Count messages from others that arrived since the user last had the panel open
       if (userEmail && data?.length) {
         const lastRead = localStorage.getItem(lastReadKey(leagueId, userEmail));
+        lastReadRef.current = lastRead;
         const count = data.filter((m) => {
           if (m.user_email === userEmail) return false;
           if (!lastRead) return true;
@@ -50,6 +54,21 @@ export function useChatMessages(leagueId, userEmail, isOpen) {
       }
     });
   }, [leagueId, userEmail]);
+
+  useEffect(() => {
+    if (!leagueId || !userEmail || typeof window === 'undefined' || !('BroadcastChannel' in window)) return;
+    const channel = new BroadcastChannel(channelKey(leagueId, userEmail));
+    channelRef.current = channel;
+    channel.onmessage = (event) => {
+      if (event?.data?.type === 'chat_read' && event?.data?.timestamp) {
+        const ts = event.data.timestamp;
+        lastReadRef.current = ts;
+        const count = (messages || []).filter((m) => m.user_email !== userEmail && m.created_at > ts).length;
+        setUnreadCount(count);
+      }
+    };
+    return () => channel.close();
+  }, [leagueId, userEmail, messages]);
 
   // Real-time subscription
   useEffect(() => {
@@ -113,7 +132,12 @@ export function useChatMessages(leagueId, userEmail, isOpen) {
   const clearUnread = useCallback(() => {
     setUnreadCount(0);
     if (leagueId && userEmail) {
-      localStorage.setItem(lastReadKey(leagueId, userEmail), new Date().toISOString());
+      const ts = new Date().toISOString();
+      lastReadRef.current = ts;
+      localStorage.setItem(lastReadKey(leagueId, userEmail), ts);
+      if (channelRef.current) {
+        channelRef.current.postMessage({ type: 'chat_read', timestamp: ts });
+      }
     }
   }, [leagueId, userEmail]);
 

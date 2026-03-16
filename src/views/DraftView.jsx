@@ -72,9 +72,10 @@ const DraftView = (props) => {
     const currentPickerPicks = (supabasePicks || []).filter(
       (p) => p.picker_email?.toLowerCase() === currentPickerEmail
     );
-    const manualPickPausedUntil = supabaseDraftState?.manualPickPausedUntil;
-    const manualPickHoldActive = !!manualPickPausedUntil && Date.now() < new Date(manualPickPausedUntil).getTime();
-    const shouldHoldManualPick = manualPickHoldActive && isMyTurn && !!draftSettings?.autoPickFromQueue;
+    const [autoPickHoldActive, setAutoPickHoldActive] = useState(false);
+    const [autoPickHoldPickNumber, setAutoPickHoldPickNumber] = useState(null);
+    const prevPickRef = useRef(null);
+    const shouldHoldManualPick = autoPickHoldActive;
     const missingRequiredSports = (selectedLeague?.sports || []).filter(
       (sport) => !currentPickerPicks.some((p) => p.sport === sport)
     );
@@ -152,6 +153,32 @@ const DraftView = (props) => {
         setGridSportFilter('ALL');
       }
     }, [gridSportFilter, selectedLeague?.sports]);
+
+    useEffect(() => {
+      const prevPick = prevPickRef.current;
+      if (prevPick != null && effectiveCurrentPick < prevPick) {
+        if (isMyTurn && !!draftSettings?.autoPickFromQueue) {
+          setAutoPickHoldActive(true);
+          setAutoPickHoldPickNumber(effectiveCurrentPick);
+        }
+      }
+      prevPickRef.current = effectiveCurrentPick;
+    }, [effectiveCurrentPick, isMyTurn, draftSettings?.autoPickFromQueue]);
+
+    useEffect(() => {
+      if (!autoPickHoldActive) return;
+      if (!isMyTurn || !draftSettings?.autoPickFromQueue) {
+        setAutoPickHoldActive(false);
+        return;
+      }
+      if (autoPickHoldPickNumber == null) return;
+      const pickFilled = (supabasePicks || []).some(
+        (p) => p.pick_number === autoPickHoldPickNumber
+      );
+      if (pickFilled || effectiveCurrentPick !== autoPickHoldPickNumber) {
+        setAutoPickHoldActive(false);
+      }
+    }, [autoPickHoldActive, autoPickHoldPickNumber, isMyTurn, draftSettings?.autoPickFromQueue, supabasePicks, effectiveCurrentPick]);
 
     useEffect(() => {
       if (sportsFilter !== 'ALL' && !(allSportCodes || []).includes(sportsFilter)) {
@@ -303,7 +330,6 @@ const DraftView = (props) => {
         return;
       }
       if (shouldHoldManualPick) {
-        setPickError('Auto-pick is running after rollback. Wait a moment or disable auto-pick to pick manually.');
         return;
       }
       if (isPickerSportFull(sport)) {
@@ -343,7 +369,11 @@ const DraftView = (props) => {
         setTimerExpired(false);
       } catch (error) {
         console.error('Error making pick:', error);
-        setPickError(error?.message ? `Failed to make pick: ${error.message}` : 'Failed to make pick. Please try again.');
+        if (error?.code === '23505') {
+          setPickError('Pick already made for this slot. The draft just advanced — refresh and try again.');
+        } else {
+          setPickError(error?.message ? `Failed to make pick: ${error.message}` : 'Failed to make pick. Please try again.');
+        }
       } finally {
         setIsSubmitting(false);
       }
@@ -388,6 +418,17 @@ const DraftView = (props) => {
         setCurrentView('league');
       }
     }, [isDraftComplete]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+      const holdMessage = 'Auto-pick is running after rollback. Waiting for it to complete.';
+      if (shouldHoldManualPick) {
+        setPickError(holdMessage);
+        return;
+      }
+      if (pickError === holdMessage) {
+        setPickError('');
+      }
+    }, [shouldHoldManualPick, pickError]);
 
     return (
       <div className="flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" style={{ height: '100dvh' }}>

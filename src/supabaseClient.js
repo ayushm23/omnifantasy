@@ -366,6 +366,12 @@ export const makePick = async (pickData) => {
     .select()
     .single();
 
+  if (error?.code === '23505') {
+    const dupe = new Error('Pick already made for this slot.');
+    dupe.code = '23505';
+    return { data: null, error: dupe };
+  }
+
   return { data, error };
 };
 

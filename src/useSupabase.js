@@ -258,7 +258,6 @@ export const useDraft = (leagueId) => {
   const [picks, setPicks] = useState([]);
   const [maxPicks, setMaxPicks] = useState(null);
   const [loading, setLoading] = useState(true);
-  const ROLLBACK_MANUAL_PICK_HOLD_MS = 5000;
 
   useEffect(() => {
     if (!leagueId) return;
@@ -284,7 +283,6 @@ export const useDraft = (leagueId) => {
           thirdRoundReversal: stateData.third_round_reversal,
           draftEverySportRequired: stateData.draft_every_sport_required !== false,
           pickStartedAt: stateData.pick_started_at,
-          manualPickPausedUntil: stateData.manual_pick_paused_until,
           picks: picksData || []
         });
       }
@@ -345,7 +343,6 @@ export const useDraft = (leagueId) => {
       current_pick: nextPick,
       current_round: nextRound,
       pick_started_at: new Date().toISOString(),
-      manual_pick_paused_until: null,
     });
 
     if (stateError) console.error(stateError);
@@ -368,7 +365,6 @@ export const useDraft = (leagueId) => {
       current_pick: newPick,
       current_round: newRound,
       pick_started_at: new Date().toISOString(),
-      manual_pick_paused_until: new Date(Date.now() + ROLLBACK_MANUAL_PICK_HOLD_MS).toISOString(),
     });
   };
 
