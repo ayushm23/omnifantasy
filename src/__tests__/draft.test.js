@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPickerIndex, normalizeDraftPicker, formatPickNumber, wouldBreakSportCoverage } from '../utils/draft';
+import { getPickerIndex, normalizeDraftPicker, formatPickNumber, wouldBreakSportCoverage, compareByEP, picksUntilTurn, generateDraftBoard } from '../utils/draft';
 
 // ---------------------------------------------------------------------------
 // getPickerIndex
@@ -179,5 +179,73 @@ describe('wouldBreakSportCoverage', () => {
     };
     // After A is picked: remaining teams = 2, members still needing sport = 2 (b,c)
     expect(wouldBreakSportCoverage(params)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// compareByEP
+// ---------------------------------------------------------------------------
+
+describe('compareByEP', () => {
+  it('orders higher EP after lower EP for ascending sort', () => {
+    const a = { team: 'A', ep: 10 };
+    const b = { team: 'B', ep: 20 };
+    expect(compareByEP(a, b)).toBeLessThan(0);
+    expect(compareByEP(b, a)).toBeGreaterThan(0);
+  });
+
+  it('pushes null/NaN EP to the end (as -Infinity)', () => {
+    const withEp = { team: 'A', ep: 5 };
+    const nullEp = { team: 'B', ep: null };
+    const nanEp = { team: 'C', ep: NaN };
+    expect(compareByEP(nullEp, withEp)).toBeLessThan(0);
+    expect(compareByEP(nanEp, withEp)).toBeLessThan(0);
+  });
+
+  it('uses team name as tiebreaker when EPs are equal', () => {
+    const a = { team: 'Alpha', ep: 10 };
+    const b = { team: 'Beta', ep: 10 };
+    expect(compareByEP(a, b)).toBeLessThan(0);
+    expect(compareByEP(b, a)).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// picksUntilTurn
+// ---------------------------------------------------------------------------
+
+describe('picksUntilTurn', () => {
+  const order = ['a@example.com', 'b@example.com', 'c@example.com', 'd@example.com'];
+
+  it('returns null when draft order is empty', () => {
+    expect(picksUntilTurn({ myEmail: 'a@example.com', draftOrder: [], currentPick: 1, currentRound: 1, isSnake: true, thirdRoundReversal: false })).toBeNull();
+  });
+
+  it('calculates next turn in standard snake', () => {
+    // Pick 1 just happened (round 1), next pick is #2 (b), so a should be 7 picks away in a 4-team snake
+    const result = picksUntilTurn({ myEmail: 'a@example.com', draftOrder: order, currentPick: 1, currentRound: 1, isSnake: true, thirdRoundReversal: false });
+    expect(result).toBe(7);
+  });
+
+  it('calculates next turn in linear draft', () => {
+    // Linear draft: a picks every 4 picks
+    const result = picksUntilTurn({ myEmail: 'a@example.com', draftOrder: order, currentPick: 2, currentRound: 1, isSnake: false, thirdRoundReversal: false });
+    expect(result).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generateDraftBoard
+// ---------------------------------------------------------------------------
+
+describe('generateDraftBoard', () => {
+  it('marks picks belonging to the current user', () => {
+    const picks = [
+      { id: 1, picker_email: 'a@example.com' },
+      { id: 2, picker_email: 'b@example.com' },
+    ];
+    const board = generateDraftBoard(picks, 'b@example.com');
+    expect(board[0].isUser).toBe(false);
+    expect(board[1].isUser).toBe(true);
   });
 });
