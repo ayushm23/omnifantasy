@@ -18,6 +18,7 @@ import {
   normalizeDraftPicker,
   timerStringToMs,
   computeTimeRemaining,
+  isInPauseWindow,
   sendEmail,
   escapeHtml,
 } from '../_shared/draft-helpers.ts';
@@ -73,8 +74,7 @@ Deno.serve(async (req) => {
       const pauseEnd   = league.timer_pause_end_hour   ?? 8;
 
       // Skip if currently inside the pause window (timer is frozen)
-      const nowHour = new Date().getUTCHours();
-      if (pauseStart < pauseEnd && nowHour >= pauseStart && nowHour < pauseEnd) continue;
+      if (isInPauseWindow(pauseStart, pauseEnd)) continue;
 
       const timeRemaining = computeTimeRemaining(
         state.pick_started_at, timerMs, pauseStart, pauseEnd,

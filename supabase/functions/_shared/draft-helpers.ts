@@ -61,39 +61,91 @@ export function timerStringToMs(timerStr: string | null | undefined): number | n
 }
 
 // Compute effective time remaining in ms, subtracting pause-window hours.
-// pauseStartHour / pauseEndHour are integers 0–23 (UTC-based league setting).
+// pauseStartHour / pauseEndHour are integers 0–23 (interpreted in ET).
+const TIMER_TIMEZONE = 'America/New_York';
+
+const toTimeZoneMs = (ms: number, timeZone = TIMER_TIMEZONE) =>
+  new Date(new Date(ms).toLocaleString('en-US', { timeZone })).getTime();
+
+const getTimeZoneHour = (ms: number, timeZone = TIMER_TIMEZONE) =>
+  new Date(new Date(ms).toLocaleString('en-US', { timeZone })).getHours();
+
+export function isInPauseWindow(
+  pauseStartHour: number,
+  pauseEndHour: number,
+  nowMs: number = Date.now(),
+  timeZone: string = TIMER_TIMEZONE,
+): boolean {
+  if (pauseStartHour === pauseEndHour) return false;
+  const hour = getTimeZoneHour(nowMs, timeZone);
+  if (pauseStartHour < pauseEndHour) {
+    return hour >= pauseStartHour && hour < pauseEndHour;
+  }
+  // Cross-midnight window, e.g. 22 -> 6
+  return hour >= pauseStartHour || hour < pauseEndHour;
+}
+
+function getPausedElapsedMs(
+  startMs: number,
+  endMs: number,
+  pauseStartHour: number,
+  pauseEndHour: number,
+  timeZone: string = TIMER_TIMEZONE,
+): number {
+  if (pauseStartHour === pauseEndHour || endMs <= startMs) return 0;
+
+  const hourMs = 60 * 60 * 1000;
+  const dayMs = 24 * hourMs;
+  const startTz = toTimeZoneMs(startMs, timeZone);
+  const endTz = toTimeZoneMs(endMs, timeZone);
+
+  const overlapMs = (aStart: number, aEnd: number, bStart: number, bEnd: number) =>
+    Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
+
+  let pausedMs = 0;
+  const dayCursor = new Date(startTz);
+  dayCursor.setHours(0, 0, 0, 0);
+  const endDay = new Date(endTz);
+  endDay.setHours(0, 0, 0, 0);
+
+  while (dayCursor.getTime() <= endDay.getTime()) {
+    const dayStart = dayCursor.getTime();
+    const dayEnd = dayStart + dayMs;
+
+    if (pauseStartHour < pauseEndHour) {
+      const pauseStart = dayStart + pauseStartHour * hourMs;
+      const pauseEnd = dayStart + pauseEndHour * hourMs;
+      pausedMs += overlapMs(startTz, endTz, pauseStart, pauseEnd);
+    } else {
+      const firstStart = dayStart;
+      const firstEnd = dayStart + pauseEndHour * hourMs;
+      const secondStart = dayStart + pauseStartHour * hourMs;
+      pausedMs += overlapMs(startTz, endTz, firstStart, firstEnd);
+      pausedMs += overlapMs(startTz, endTz, secondStart, dayEnd);
+    }
+
+    dayCursor.setDate(dayCursor.getDate() + 1);
+  }
+
+  return Math.max(0, pausedMs);
+}
+
 export function computeTimeRemaining(
   pickStartedAt: string,
   timerMs: number,
   pauseStartHour: number,
   pauseEndHour: number,
+  nowMs: number = Date.now(),
 ): number {
-  const now = Date.now();
   const startMs = new Date(pickStartedAt).getTime();
-
-  let pauseAccumMs = 0;
-  if (pauseStartHour < pauseEndHour) {
-    // Walk day-by-day from pick start to now, accumulating pause overlap.
-    const dayMs = 24 * 3600 * 1000;
-    let cursor = startMs;
-    while (cursor < now) {
-      const dayStart = cursor - (cursor % dayMs); // UTC midnight
-      const winStart = dayStart + pauseStartHour * 3600 * 1000;
-      const winEnd   = dayStart + pauseEndHour   * 3600 * 1000;
-      const overlapStart = Math.max(cursor, winStart);
-      const overlapEnd   = Math.min(now,    winEnd);
-      if (overlapEnd > overlapStart) pauseAccumMs += overlapEnd - overlapStart;
-      cursor = dayStart + dayMs;
-    }
-  }
-
-  const effectiveElapsed = (now - startMs) - pauseAccumMs;
+  const pauseAccumMs = getPausedElapsedMs(startMs, nowMs, pauseStartHour, pauseEndHour);
+  const effectiveElapsed = (nowMs - startMs) - pauseAccumMs;
   return timerMs - effectiveElapsed;
 }
 
 // Given a pick start time and timer duration, compute the actual wall-clock
 // deadline by advancing forward while skipping any configured pause windows.
-// pauseStartHour / pauseEndHour are integers 0–23 (UTC-based).
+// pauseStartHour / pauseEndHour are integers 0–23 (interpreted in ET).
 export function computeDeadline(
   pickStartedAt: string,
   timerMs: number,
@@ -102,38 +154,24 @@ export function computeDeadline(
 ): Date {
   const start = new Date(pickStartedAt).getTime();
 
-  // No effective pause window — simple addition
-  if (pauseStartHour >= pauseEndHour) {
+  // No pause window — simple addition
+  if (pauseStartHour === pauseEndHour) {
     return new Date(start + timerMs);
   }
 
-  const dayMs          = 24 * 3600 * 1000;
-  const pauseDurMs     = (pauseEndHour - pauseStartHour) * 3600 * 1000;
-  let cursor           = start;
-  let remainingActive  = timerMs;
-
-  while (remainingActive > 0) {
-    const dayStart  = cursor - (cursor % dayMs); // UTC midnight of cursor's day
-    const winStart  = dayStart + pauseStartHour * 3600 * 1000;
-    const winEnd    = dayStart + pauseEndHour   * 3600 * 1000;
-
-    // If cursor landed inside a pause window, jump to end of it
-    if (cursor >= winStart && cursor < winEnd) {
-      cursor = winEnd;
-      continue;
-    }
-
-    // Next pause start (today's if we haven't reached it yet, otherwise tomorrow's)
-    const nextPause = cursor < winStart ? winStart : winStart + dayMs;
-    const activeUntilPause = nextPause - cursor;
-
-    if (remainingActive <= activeUntilPause) {
-      cursor += remainingActive;
-      remainingActive = 0;
-    } else {
-      remainingActive -= activeUntilPause;
-      cursor = nextPause + pauseDurMs; // skip the pause window
-    }
+  // Iterate forward until the full active timer duration has elapsed,
+  // using the same pause-window math as computeTimeRemaining.
+  let cursor = start + timerMs;
+  for (let i = 0; i < 12; i += 1) {
+    const remaining = computeTimeRemaining(
+      pickStartedAt,
+      timerMs,
+      pauseStartHour,
+      pauseEndHour,
+      cursor,
+    );
+    if (remaining <= 0) return new Date(cursor);
+    cursor += remaining;
   }
 
   return new Date(cursor);

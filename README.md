@@ -122,7 +122,7 @@ npm run preview   # preview prod build
 ### Draft Settings
 - **Draft order**: randomize or set manually
 - **Pick timer**: none, 4h, 8h, 12h, or 24h
-- **Timer pause window**: daily quiet hours (default midnight–8 AM UTC) during which the timer is frozen
+- **Timer pause window**: daily quiet hours (default midnight–8 AM ET) during which the timer is frozen
 - **Snake format**: standard snake, or Third Round Reversal (rounds 2–3 reversed, then alternating)
 - **Sport requirement**: force each drafter to cover all league sports before flex picks
 
