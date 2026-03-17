@@ -2,7 +2,8 @@
 // Manages a user's personal draft queue and personal draft settings for a league.
 //
 // Queue: an ordered list of sport+team combinations the user wants to draft.
-//   - Autopick (timer expiry or immediate) uses this order before falling back to highest-EP.
+//   - Timer-expiry autopick uses this order before falling back to highest-EP.
+//   - Immediate autopick uses queue only (no EP fallback).
 //   - Teams already picked by anyone are skipped automatically during autopick.
 //
 // Settings (per user per league):

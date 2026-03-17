@@ -7,7 +7,7 @@
 //
 //   2. Immediate auto-pick — fires when `currentPick` advances (or on page load)
 //      and `autoPickFromQueue` is enabled for the current user.
-//      Tries queue first; falls back to highest-EP pick if queue is empty.
+//      Uses queue only (no EP fallback) so empty queues require manual picks.
 //      Picks immediately — no countdown delay.
 
 import { useEffect, useRef } from 'react';
@@ -268,14 +268,9 @@ export function useAutoPickLogic({
       );
       if (candidates.length === 0) return;
 
-      // Try queue first, fall back to best EP
-      let chosen = getQueueAutopick(queueRef.current, picks, league, draftState, user.email);
-      if (!chosen) {
-        const withEp = candidates.filter(c => c.ep != null);
-        chosen = withEp.length > 0
-          ? withEp.sort((a, b) => b.ep - a.ep)[0]
-          : candidates[0];
-      }
+      // Queue only for immediate auto-pick (no EP fallback)
+      const chosen = getQueueAutopick(queueRef.current, picks, league, draftState, user.email);
+      if (!chosen) return;
 
       try {
         lastAutoPickKeyRef.current = autoPickKey;
@@ -297,7 +292,7 @@ export function useAutoPickLogic({
 
     runImmediateAutoPick();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabaseDraftState?.currentPick, supabaseDraftState?.currentRound, draftSettings?.autoPickFromQueue]);
+  }, [supabaseDraftState?.currentPick, supabaseDraftState?.currentRound, draftSettings?.autoPickFromQueue, queue?.length]);
 
   return {};
 }

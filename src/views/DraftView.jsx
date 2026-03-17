@@ -136,6 +136,7 @@ const DraftView = (props) => {
     const [selectedTeamInfo, setSelectedTeamInfo] = useState(null); // { sport, team, currentEP } | null
     const teamInfoFromSportsRef = useRef(false); // true when popup was opened from the sports catalog modal
     const [showClearQueueConfirm, setShowClearQueueConfirm] = useState(false);
+    const [queueAutoPickWarning, setQueueAutoPickWarning] = useState(null);
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [mobileSheet, setMobileSheet] = useState(null); // null | 'queue' | 'roster'
     const [activeDraftTab, setActiveDraftTab] = useState('draft');
@@ -145,6 +146,13 @@ const DraftView = (props) => {
       clearTimeout(lockToastTimerRef.current);
       setLockToast(msg);
       lockToastTimerRef.current = setTimeout(() => setLockToast(null), 2500);
+    };
+    const handleAddToQueue = (sport, team) => {
+      if (draftSettings?.autoPickFromQueue) {
+        setQueueAutoPickWarning({ sport, team });
+        return;
+      }
+      onAddToQueue(sport, team);
     };
 
     useEffect(() => {
@@ -757,6 +765,20 @@ const DraftView = (props) => {
                 onCancel={() => setShowClearQueueConfirm(false)}
               />
             )}
+            {queueAutoPickWarning && (
+              <ConfirmModal
+                title="Auto-pick from queue is enabled"
+                message="Adding this to your queue will auto-pick it immediately if it's your turn. Please disable auto-pick from queue first if you do not want that."
+                confirmLabel="Add anyway"
+                confirmClassName="bg-amber-600 hover:bg-amber-700 text-white"
+                onConfirm={() => {
+                  const { sport, team } = queueAutoPickWarning;
+                  setQueueAutoPickWarning(null);
+                  onAddToQueue(sport, team);
+                }}
+                onCancel={() => setQueueAutoPickWarning(null)}
+              />
+            )}
 
             <div className="mb-4 flex flex-col md:flex-row gap-2">
               <input
@@ -892,7 +914,7 @@ const DraftView = (props) => {
                             }
                             return (
                               <button
-                                onClick={(e) => { e.stopPropagation(); onAddToQueue(sport, team); }}
+                                onClick={(e) => { e.stopPropagation(); handleAddToQueue(sport, team); }}
                                 className="text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 w-7 h-7 rounded flex items-center justify-center transition-colors font-bold text-lg"
                                 title="Add to queue"
                               >+</button>
@@ -969,7 +991,7 @@ const DraftView = (props) => {
                               </button>
                             ) : (
                               <button
-                                onClick={(e) => { e.stopPropagation(); onAddToQueue(sport, team); }}
+                                onClick={(e) => { e.stopPropagation(); handleAddToQueue(sport, team); }}
                                 className="text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 w-6 h-6 rounded flex items-center justify-center transition-colors font-bold text-base"
                                 title="Add to queue"
                               >
