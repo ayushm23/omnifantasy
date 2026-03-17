@@ -10,6 +10,7 @@
 // All results are cached in the same odds_cache table with the same 2-day TTL.
 
 import { normalizeF1Name } from './utils/aliases';
+import { calculateEP } from './utils/epCalc';
 
 const JOLPICA_F1_STANDINGS = 'https://api.jolpi.ca/ergast/f1/current/driverStandings.json';
 
@@ -118,13 +119,7 @@ const WTA_PRESEASON_ODDS = {
 
 const SCRAPED_SPORT_CODES = ['F1'];
 
-// Mirrors calculateEP in oddsApi.js — duplicated to avoid circular import
-function calculateEPFromProb(p) {
-  const pTop2 = Math.min(1, 2 * p);
-  const pTop4 = Math.min(1, 4 * p);
-  const pTop8 = Math.min(1, 12 * p);
-  return p * 80 + (pTop2 - p) * 50 + (pTop4 - pTop2) * 30 + (pTop8 - pTop4) * 20;
-}
+// calculateEP imported from src/utils/epCalc.js — single source of truth, no circular import risk
 
 /**
  * Normalize a preseason odds map so probabilities sum to exactly 1.0.
@@ -203,7 +198,7 @@ export function getPreseasonFallbackEP(sportCode) {
   const normalized = normalizeOdds(oddsMap);
   const result = {};
   for (const [name, prob] of Object.entries(normalized)) {
-    result[name] = Math.round(calculateEPFromProb(prob) * 10) / 10;
+    result[name] = Math.round(calculateEP(prob) * 10) / 10;
   }
   return result;
 }

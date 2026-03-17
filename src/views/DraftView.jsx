@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, Plus, ArrowLeft, Settings } from 'lucide-react';
 import { getCurrentPickerFromState, normalizeDraftPicker, compareByEP, wouldBreakSportCoverage, picksUntilTurn, generateDraftBoard } from '../utils/draft';
 import SportBadge from '../components/SportBadge';
@@ -121,8 +121,6 @@ const DraftView = (props) => {
     const [gridAvailableOnly, setGridAvailableOnly] = useState(true);
     const [gridSortBy, setGridSortBy] = useState('ep');
     const [gridSortDir, setGridSortDir] = useState('desc');
-    const [gridPage, setGridPage] = useState(0);
-    const GRID_PAGE_SIZE = 25;
     const [showSportsModal, setShowSportsModal] = useState(false);
     const [sportsSearch, setSportsSearch] = useState('');
     const [sportsFilter, setSportsFilter] = useState('ALL');
@@ -141,8 +139,6 @@ const DraftView = (props) => {
     const [showClearQueueConfirm, setShowClearQueueConfirm] = useState(false);
     const [queueAutoPickWarning, setQueueAutoPickWarning] = useState(null);
     const [showMobileMenu, setShowMobileMenu] = useState(false);
-    const [mobileSheet, setMobileSheet] = useState(null); // null | 'queue' | 'roster'
-    const [activeDraftTab, setActiveDraftTab] = useState('draft');
     const [lockToast, setLockToast] = useState(null); // string | null
     const lockToastTimerRef = useRef(null);
     const showLockToast = (msg) => {
@@ -199,6 +195,30 @@ const DraftView = (props) => {
         setGridSportFilter('ALL');
       }
     }, [gridSportFilter, selectedLeague?.sports]);
+
+    const wouldBreakRequiredSportAvailability = useCallback((pickerEmail, sport, team) =>
+      wouldBreakSportCoverage({
+        sportRequirementEnabled,
+        leagueSports: selectedLeague?.sports,
+        pool: getDraftPoolForSport(sport),
+        draftEmails: (effectiveDraftOrder || []).map(m => m?.email?.toLowerCase()).filter(Boolean),
+        picks: supabasePicks,
+        pickerEmail,
+        sport,
+        team,
+      }),
+    [sportRequirementEnabled, selectedLeague?.sports, getDraftPoolForSport, effectiveDraftOrder, supabasePicks]);
+
+    const hasValidQueueItem = useMemo(() => {
+      if (!queue || queue.length === 0) return false;
+      const pickedSet = new Set((supabasePicks || []).map(p => `${p.sport}::${p.team_name}`));
+      for (const item of queue) {
+        if (pickedSet.has(`${item.sport}::${item.team}`)) continue;
+        if (wouldBreakRequiredSportAvailability(currentUser?.email, item.sport, item.team)) continue;
+        return true;
+      }
+      return false;
+    }, [queue, supabasePicks, currentUser?.email, wouldBreakRequiredSportAvailability]);
 
     useEffect(() => {
       const prevPick = prevPickRef.current;
@@ -386,6 +406,7 @@ const DraftView = (props) => {
         team_name: team
       };
 
+      setPickError(''); // Clear any prior error before each attempt
       setIsSubmitting(true);
       try {
         // Call database function which handles both pick insertion and draft state update

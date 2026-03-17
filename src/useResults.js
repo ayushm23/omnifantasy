@@ -25,18 +25,20 @@ export function useResults(sportCodes) {
 
   useEffect(() => {
     if (!key) return;
+    let isMounted = true;
     setLoading(true);
     setError(null);
     fetchAllResults(sportCodes)
       .then(data => {
-        setResults(data);
+        if (isMounted) setResults(data);
       })
       .catch(err => {
-        setError(err);
+        if (isMounted) setError(err);
       })
       .finally(() => {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       });
+    return () => { isMounted = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, retryCount]);
 

@@ -48,6 +48,9 @@ export function useDraftQueue(leagueId, userEmail) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Clear stale error when context changes (e.g. navigating to a different league/user)
+  useEffect(() => { setError(null); }, [leagueId, userEmail]);
+
   // Append a team to the end of the queue.
   // Silently ignores if the team is already queued (DB unique constraint guards this too).
   // Pessimistic: waits for DB before updating UI (addItem creates a new row and needs the returned id).

@@ -104,12 +104,17 @@ function applyResults(results, season, sport, team, setPerformance) {
 export function useTeamPerformance(sport, team, selectedSeason = null) {
   const [performance, setPerformance] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!sport || !team) return;
     let cancelled = false;
+    // Tag this fetch with the season it was requested for so out-of-order responses
+    // can be detected and discarded (race condition guard).
+    const requestedSeason = selectedSeason;
     setLoading(true);
     setPerformance(null);
+    setError(null);
 
     async function load() {
       let row = null;
@@ -180,16 +185,25 @@ export function useTeamPerformance(sport, team, selectedSeason = null) {
       }
 
       if (cancelled) return;
+
+      // Discard if the user has since changed to a different season (out-of-order response)
+      if (requestedSeason !== selectedSeason) return;
+
       setLoading(false);
       if (!row?.results) return;
 
       applyResults(row.results, row.season, sport, team, setPerformance);
     }
 
-    load().catch(() => { if (!cancelled) setLoading(false); });
+    load().catch((err) => {
+      if (!cancelled) {
+        setLoading(false);
+        setError(err);
+      }
+    });
 
     return () => { cancelled = true; };
   }, [sport, team, selectedSeason]);
 
-  return { performance, loading };
+  return { performance, loading, error };
 }

@@ -18,17 +18,18 @@ export function useExpectedPoints(sportCodes) {
 
   useEffect(() => {
     if (!sportCodes || sportCodes.length === 0 || !key) return;
-
+    let isMounted = true;
     setLoading(true);
     setError(null);
     fetchAllExpectedPoints(sportCodes)
       .then(data => {
-        setExpectedPoints(data);
+        if (isMounted) setExpectedPoints(data);
       })
       .catch(err => {
-        setError(err);
+        if (isMounted) setError(err);
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (isMounted) setLoading(false); });
+    return () => { isMounted = false; };
   }, [key, refreshNonce]); // re-run when sports set changes or manual refresh requested
 
   const refreshExpectedPoints = () => setRefreshNonce((n) => n + 1);

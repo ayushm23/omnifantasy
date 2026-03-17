@@ -63,12 +63,18 @@ export function useChatMessages(leagueId, userEmail, isOpen) {
       if (event?.data?.type === 'chat_read' && event?.data?.timestamp) {
         const ts = event.data.timestamp;
         lastReadRef.current = ts;
-        const count = (messages || []).filter((m) => m.user_email !== userEmail && m.created_at > ts).length;
-        setUnreadCount(count);
+        // Use functional state update to access current messages without needing them as a dep
+        setMessages((currentMessages) => {
+          const count = (currentMessages || []).filter((m) => m.user_email !== userEmail && m.created_at > ts).length;
+          setUnreadCount(count);
+          return currentMessages; // no change to messages, just side-effect
+        });
       }
     };
     return () => channel.close();
-  }, [leagueId, userEmail, messages]);
+  // messages intentionally omitted: functional setState gives us current messages without re-subscribing
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leagueId, userEmail]);
 
   // Real-time subscription
   useEffect(() => {

@@ -12,56 +12,8 @@
 //   F1:            { standings: [ordered driver names], is_complete, season }
 
 // ─── Multi-event sport helpers ───────────────────────────────────────────────
-// Mirrored from resultsApi.js (intentional — avoids circular imports).
-// Keep both copies in sync if scoring rules change.
-
-function golfEventPoints(player, event) {
-  if (!event?.is_complete) return 0;
-  if (player === event.champion) return 8;
-  if (player === event.runner_up) return 5;
-  if (event.semifinals?.includes(player)) return 3;
-  if (event.quarterfinalists?.includes(player)) return 2;
-  if (event.ninth_to_sixteenth?.includes(player)) return 1;
-  return 0;
-}
-
-function tennisEventPoints(player, event) {
-  if (!event?.is_complete) return 0;
-  if (player === event.champion) return 8;
-  if (player === event.runner_up) return 5;
-  if (event.semifinals?.includes(player)) return 3;
-  if (event.quarterfinalists?.includes(player)) return 2;
-  if (event.round_of_sixteen?.includes(player)) return 1;
-  return 0;
-}
-
-function computeMultiEventRankings(events, getEventPointsFn) {
-  const completedEvents = events.filter(e => e.is_complete);
-  if (completedEvents.length === 0) return [];
-
-  const playerSet = new Set();
-  for (const event of completedEvents) {
-    [
-      event.champion,
-      event.runner_up,
-      ...(event.semifinals || []),
-      ...(event.quarterfinalists || []),
-      ...(event.ninth_to_sixteenth || []),
-      ...(event.round_of_sixteen || []),
-    ].filter(Boolean).forEach(p => playerSet.add(p));
-  }
-
-  const playerData = [];
-  for (const player of playerSet) {
-    const pts = completedEvents.map(e => getEventPointsFn(player, e));
-    const total = pts.reduce((a, b) => a + b, 0);
-    const best = Math.max(...pts, 0);
-    if (total > 0) playerData.push({ player, total, best });
-  }
-
-  playerData.sort((a, b) => b.total - a.total || b.best - a.best);
-  return playerData.map(d => d.player);
-}
+// Imported from src/utils/multiEventScoring.js — single source of truth.
+import { golfEventPoints, tennisEventPoints, computeMultiEventRankings } from './multiEventScoring';
 
 const MULTI_EVENT_SPORTS = new Set(['Golf', 'MensTennis', 'WomensTennis']);
 

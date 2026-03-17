@@ -64,13 +64,19 @@ const LeagueView = (props) => {
     if ((selectedLeague?.membersList?.length || 0) >= 20) { setAddMemberError('League is full (20 members max).'); return; }
     setAddMemberLoading(true);
     setAddMemberError('');
-    const { error } = await addLeagueMember(selectedLeagueId, email);
-    if (error) { setAddMemberError(error.message || 'Failed to add member.'); setAddMemberLoading(false); return; }
-    const commName = getUserDisplayName(currentUser);
-    sendLeagueInvite(email, selectedLeague?.name || '', commName);
-    setNewMemberEmail('');
-    await reloadLeagues();
-    setAddMemberLoading(false);
+    try {
+      const { error } = await addLeagueMember(selectedLeagueId, email);
+      if (error) { setAddMemberError(error.message || 'Failed to add member.'); return; }
+      const commName = getUserDisplayName(currentUser);
+      sendLeagueInvite(email, selectedLeague?.name || '', commName);
+      setNewMemberEmail('');
+      await reloadLeagues();
+    } catch (err) {
+      console.error('handleAddMember unexpected error:', err);
+      setAddMemberError('An unexpected error occurred. Please try again.');
+    } finally {
+      setAddMemberLoading(false);
+    }
   };
 
   const handleRemoveMember = async (member) => {

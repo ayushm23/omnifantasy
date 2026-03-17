@@ -18,6 +18,7 @@
 import { getOddsCache, upsertOddsCache, insertEPHistory } from './supabaseClient';
 import { fetchScrapedProbabilities, isScrapedSport, getPreseasonFallbackEP } from './oddsScraper';
 import { normalizeOddsApiName } from './utils/aliases';
+import { calculateEP } from './utils/epCalc';
 
 const API_BASE = 'https://api.the-odds-api.com/v4/sports';
 const CACHE_TTL = 2 * 24 * 60 * 60 * 1000; // 2 days
@@ -62,42 +63,9 @@ const SPORT_KEY_MAP = {
   // F1 still uses scraper (Jolpica API — no Odds API coverage)
 };
 
-// Scoring by finishing position
-const CHAMPION_PTS = 80;
-const RUNNER_UP_PTS = 50;
-const SEMIFINALIST_PTS = 30;
-const QUARTERFINALIST_PTS = 20;
-
-/**
- * Calculate expected points from win probability using a positional model.
- * Instead of naive p × 270, we estimate the probability of reaching each
- * finishing position and weight by the points for that position.
- *
- * Given win probability p:
- *   P(top 2) ≈ min(1, 2p), P(top 4) ≈ min(1, 4p), P(top 8) ≈ min(1, 12p)
- *   P(runner-up) = P(top 2) - P(champion)
- *   P(semifinalist) = P(top 4) - P(top 2)
- *   P(quarterfinalist) = P(top 8) - P(top 4)
- *
- * This sums to exactly 270 total EP across all teams when probabilities
- * are uniformly distributed, and produces more realistic per-team values.
- */
-export function calculateEP(winProbability) {
-  const p = winProbability;
-  const pTop2 = Math.min(1, 2 * p);
-  const pTop4 = Math.min(1, 4 * p);
-  const pTop8 = Math.min(1, 12 * p);
-
-  const pChampion = p;
-  const pRunnerUp = pTop2 - p;
-  const pSemifinalist = pTop4 - pTop2;
-  const pQuarterfinalist = pTop8 - pTop4;
-
-  return pChampion * CHAMPION_PTS
-       + pRunnerUp * RUNNER_UP_PTS
-       + pSemifinalist * SEMIFINALIST_PTS
-       + pQuarterfinalist * QUARTERFINALIST_PTS;
-}
+// calculateEP is imported above and re-exported so other callers can import from oddsApi.js
+// without a breaking change. The implementation lives in src/utils/epCalc.js.
+export { calculateEP };
 
 /**
  * Convert American odds to implied probability

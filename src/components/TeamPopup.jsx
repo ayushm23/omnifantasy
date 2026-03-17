@@ -160,7 +160,7 @@ export default function TeamPopup({ sport, team, currentEP, onClose, onDraft, dr
   );
   const { history, loading: epLoading } = useEPHistory(sport, team);
   const { news, hasTeamNews, loading: newsLoading, newsError } = useTeamNews(sport, team);
-  const { performance, loading: perfLoading } = useTeamPerformance(sport, team, selectedSeason);
+  const { performance, loading: perfLoading, error: perfError } = useTeamPerformance(sport, team, selectedSeason);
   const { performance: completedPerformance, loading: completedPerfLoading } = useTeamPerformance(sport, team, null);
   const { record, loading: recordLoading } = useTeamRecord(sport, team, selectedSeason);
   const showResultDivider = (record || ['Golf','MensTennis','WomensTennis'].includes(sport))
@@ -177,9 +177,10 @@ export default function TeamPopup({ sport, team, currentEP, onClose, onDraft, dr
   }, [history, activeFrame]);
 
   // Y-axis domain with a bit of padding so the line isn't flush with edges.
+  // Guard against empty array — Math.min/max(...[]) returns ±Infinity which breaks Recharts.
   const epValues = filteredHistory.map(d => d.ep);
-  const minEP = epValues.length ? Math.max(0, Math.floor(Math.min(...epValues) - 2)) : 0;
-  const maxEP = epValues.length ? Math.ceil(Math.max(...epValues) + 2) : 10;
+  const minEP = epValues.length > 0 ? Math.max(0, Math.floor(Math.min(...epValues) - 2)) : 0;
+  const maxEP = epValues.length > 0 ? Math.ceil(Math.max(...epValues) + 2) : 10;
 
   const chartEmpty = !epLoading && filteredHistory.length === 0;
 
@@ -333,6 +334,13 @@ export default function TeamPopup({ sport, team, currentEP, onClose, onDraft, dr
           {/* Performance tab */}
           {activeTab === 'performance' && (
             <div className="space-y-4">
+
+              {/* Error state */}
+              {perfError && (
+                <div className="text-center py-6 text-red-400 text-sm">
+                  Unable to load performance data. Please try again later.
+                </div>
+              )}
 
               {/* Season selector */}
               {seasons && (
