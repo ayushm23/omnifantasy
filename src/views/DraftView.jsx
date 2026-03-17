@@ -116,6 +116,7 @@ const DraftView = (props) => {
       [selectedLeague?.draftRounds, myPicks.length, myMissingRequiredSports.length, sportRequirementEnabled]
     );
     const isMySportFull = (sport) => myFlexRemaining <= 0 && myPicks.some(p => p.sport === sport);
+    const [activeDraftTab, setActiveDraftTab] = useState('draft');
     const [gridSportFilter, setGridSportFilter] = useState('ALL');
     const [gridSearch, setGridSearch] = useState('');
     const [gridAvailableOnly, setGridAvailableOnly] = useState(true);
