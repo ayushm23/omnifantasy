@@ -117,6 +117,9 @@ const DraftView = (props) => {
     );
     const isMySportFull = (sport) => myFlexRemaining <= 0 && myPicks.some(p => p.sport === sport);
     const [activeDraftTab, setActiveDraftTab] = useState('draft');
+    const [mobileSheet, setMobileSheet] = useState(null);
+    const [gridPage, setGridPage] = useState(0);
+    const GRID_PAGE_SIZE = 50;
     const [gridSportFilter, setGridSportFilter] = useState('ALL');
     const [gridSearch, setGridSearch] = useState('');
     const [gridAvailableOnly, setGridAvailableOnly] = useState(true);
