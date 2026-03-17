@@ -39,8 +39,9 @@ CREATE POLICY "Queue deletable by owner"
 
 -- ─── Member Settings ─────────────────────────────────────────────────────────
 -- Per-user per-league draft preferences.
---   auto_pick_from_queue: immediately pick from queue when it's their turn (3s countdown)
+--   auto_pick_from_queue: immediately pick from queue only when it's their turn
 --   receive_otc_emails: opt-out of on-the-clock email notifications (stub — no emails sent yet)
+--   auto_pick_general: added in a later migration (queue first, then EP fallback)
 
 CREATE TABLE IF NOT EXISTS draft_member_settings (
   league_id            UUID NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,

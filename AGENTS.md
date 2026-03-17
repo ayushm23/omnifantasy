@@ -42,7 +42,8 @@ OmniFantasy is a multi-sport fantasy draft app (teams, not players) built with R
 
 ## Draft + Auto-Pick Notes
 - `draft_state.draft_order` entries may be email strings or `{ email, name }`. Normalize before use.
-- Server-side auto-pick runs in `supabase/functions/auto-pick-from-queue` (queue-only; enforces sport coverage) and relies on a unique `(league_id, pick_number)` constraint.
+- Draft member settings are mutually exclusive: `auto_pick_from_queue` (queue-only) vs `auto_pick_general` (queue first, then EP fallback).
+- Server-side auto-pick runs in `supabase/functions/auto-pick-from-queue` (queue-only or queue→EP depending on setting) and relies on a unique `(league_id, pick_number)` constraint.
 - Server-side timer-expiry auto-pick runs in `supabase/functions/check-timer-reminders` (queue first, EP fallback) and is scheduled via pg_cron every minute for near real-time picks.
 
 ## Data/Scoring Highlights
@@ -68,6 +69,7 @@ Run after `database/database-setup.sql`:
 14. `database/database-migration-issue-reports.sql`
 15. `database/database-migration-draft-manual-pick-hold.sql`
 16. `database/database-migration-draft-reminders.sql`
+17. `database/database-migration-draft-member-autopick-general.sql`
 
 ## Local Dev
 - `npm install`

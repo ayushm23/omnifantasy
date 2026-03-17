@@ -2085,18 +2085,38 @@ const OmnifantasyApp = () => {
                 </div>
                 <div>
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Draft Queue</h3>
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={!!myDraftSettings?.autoPickFromQueue}
-                      onChange={(e) => updateDraftSettings({ autoPickFromQueue: e.target.checked })}
-                      className="mt-0.5 rounded bg-slate-900 border-slate-600"
-                    />
-                    <div>
-                      <div className="text-sm text-white">Auto-pick from queue</div>
-                      <div className="text-xs text-slate-400 mt-0.5">When it's your turn to pick in any draft, automatically select the top team from your queue immediately</div>
-                    </div>
-                  </label>
+                  <div className="space-y-3">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!myDraftSettings?.autoPickFromQueue}
+                        onChange={(e) => updateDraftSettings({
+                          autoPickFromQueue: e.target.checked,
+                          ...(e.target.checked ? { autoPickGeneral: false } : {}),
+                        })}
+                        className="mt-0.5 rounded bg-slate-900 border-slate-600"
+                      />
+                      <div>
+                        <div className="text-sm text-white">Auto-pick from queue</div>
+                        <div className="text-xs text-slate-400 mt-0.5">Queue only. If your queue is empty, you must pick manually.</div>
+                      </div>
+                    </label>
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!myDraftSettings?.autoPickGeneral}
+                        onChange={(e) => updateDraftSettings({
+                          autoPickGeneral: e.target.checked,
+                          ...(e.target.checked ? { autoPickFromQueue: false } : {}),
+                        })}
+                        className="mt-0.5 rounded bg-slate-900 border-slate-600"
+                      />
+                      <div>
+                        <div className="text-sm text-white">Auto-pick in general</div>
+                        <div className="text-xs text-slate-400 mt-0.5">Queue first, then best EP if the queue is empty.</div>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               </div>
               <div className="mt-5 pt-4 border-t border-slate-700">

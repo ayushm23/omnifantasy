@@ -2,8 +2,9 @@
 //
 // Triggered by a Supabase database webhook on draft_state UPDATE events.
 // When current_pick advances (a pick was just made), this function checks
-// whether the new picker has auto_pick_from_queue enabled and, if so,
-// immediately makes their top available queue pick.
+// the picker's auto-pick mode. If queue-only is enabled, it immediately
+// picks the top available queue item. If general mode is enabled, it
+// uses the queue first, then falls back to best EP.
 //
 // Cascade: after picking, this function updates draft_state.current_pick,
 // which fires the webhook again for the next picker — cascading through
@@ -93,15 +94,17 @@ Deno.serve(async (req) => {
     const picker = normalizeDraftPicker(draftOrder[pickerIdx]);
     if (!picker?.email) return skip('picker email unknown');
 
-    // Check if this picker has auto_pick_from_queue enabled
+    // Check if this picker has auto-pick enabled
     const { data: memberSettings } = await admin
       .from('draft_member_settings')
-      .select('auto_pick_from_queue')
+      .select('auto_pick_from_queue, auto_pick_general')
       .eq('league_id', leagueId)
       .eq('user_email', picker.email)
       .maybeSingle();
 
-    if (!memberSettings?.auto_pick_from_queue) return skip(`auto_pick_from_queue not enabled for ${picker.email}`);
+    const autoPickQueue = !!memberSettings?.auto_pick_from_queue;
+    const autoPickGeneral = !!memberSettings?.auto_pick_general;
+    if (!autoPickQueue && !autoPickGeneral) return skip(`auto-pick not enabled for ${picker.email}`);
 
     // Fetch picker's queue ordered by position
     const { data: queue } = await admin
@@ -111,7 +114,16 @@ Deno.serve(async (req) => {
       .eq('user_email', picker.email)
       .order('position', { ascending: true });
 
-    const chosen = getQueueAutopick(queue || [], existingPicks || [], league, newState, picker.email);
+    let chosen = getQueueAutopick(queue || [], existingPicks || [], league, newState, picker.email);
+    if (!chosen && autoPickGeneral) {
+      const epMap = await fetchExpectedPoints(admin, league.sports || []);
+      const candidates = buildCandidates(picker.email, existingPicks || [], league, newState, epMap);
+      if (candidates.length === 0) return skip('no valid candidates');
+      const withEp = candidates.filter(c => c.ep != null);
+      chosen = withEp.length > 0
+        ? withEp.sort((a, b) => (b.ep ?? -Infinity) - (a.ep ?? -Infinity))[0]
+        : candidates[0];
+    }
     if (!chosen) return skip('no valid queue item');
 
     // Insert the pick
@@ -264,6 +276,51 @@ function wouldBreakSportCoverage({
   return remainingAfterPick < membersStillNeedingSportAfterPick;
 }
 
+function buildCandidates(
+  pickerEmail: string,
+  picks: Array<{ sport: string; team_name: string; picker_email: string }>,
+  league: { sports: string[] },
+  draftState: { draft_every_sport_required?: boolean; draft_order?: unknown[] },
+  epMap: Record<string, Record<string, number>>,
+) {
+  const pickerEmailLower = pickerEmail.toLowerCase();
+  const pickerPicks = (picks || []).filter(
+    p => p.picker_email?.toLowerCase() === pickerEmailLower
+  );
+  const sportRequirementEnabled = draftState?.draft_every_sport_required !== false;
+  const missingRequiredSports = (league?.sports || []).filter(
+    sport => !pickerPicks.some(p => p.sport === sport)
+  );
+  const candidateSports = (sportRequirementEnabled && missingRequiredSports.length > 0)
+    ? missingRequiredSports
+    : (league?.sports || []);
+
+  const draftEmails = (draftState.draft_order || [])
+    .map(m => normalizeDraftPicker(m)?.email?.toLowerCase())
+    .filter(Boolean) as string[];
+
+  const pickedSet = new Set((picks || []).map(p => `${p.sport}::${p.team_name}`));
+  const candidates: Array<{ sport: string; team: string; ep: number | null }> = [];
+  for (const sport of candidateSports) {
+    const teams = getTeamPoolForSport(sport);
+    for (const team of teams) {
+      if (pickedSet.has(`${sport}::${team}`)) continue;
+      if (wouldBreakSportCoverage({
+        sportRequirementEnabled,
+        leagueSports: league?.sports || [],
+        pool: teams,
+        draftEmails,
+        picks,
+        pickerEmail,
+        sport,
+        team,
+      })) continue;
+      candidates.push({ sport, team, ep: epMap?.[sport]?.[team] ?? null });
+    }
+  }
+  return candidates;
+}
+
 function getQueueAutopick(
   queue: Array<{ sport: string; team: string }>,
   picks: Array<{ sport: string; team_name: string; picker_email: string }>,
@@ -292,6 +349,25 @@ function getQueueAutopick(
     return { sport: item.sport, team: item.team };
   }
   return null;
+}
+
+async function fetchExpectedPoints(
+  admin: ReturnType<typeof createClient>,
+  sports: string[],
+): Promise<Record<string, Record<string, number>>> {
+  if (!sports.length) return {};
+  const { data } = await admin
+    .from('odds_cache')
+    .select('sport_code, data')
+    .in('sport_code', sports);
+
+  const epMap: Record<string, Record<string, number>> = {};
+  for (const row of data || []) {
+    const raw = row.data || {};
+    const { _v, ...teams } = raw;
+    epMap[row.sport_code] = teams as Record<string, number>;
+  }
+  return epMap;
 }
 
 function skip(reason: string) {

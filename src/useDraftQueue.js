@@ -3,11 +3,12 @@
 //
 // Queue: an ordered list of sport+team combinations the user wants to draft.
 //   - Timer-expiry autopick uses this order before falling back to highest-EP.
-//   - Immediate autopick uses queue only (no EP fallback).
+//   - Immediate autopick behavior depends on user setting (queue-only or queue+EP).
 //   - Teams already picked by anyone are skipped automatically during autopick.
 //
 // Settings (per user per league):
-//   autoPickFromQueue — immediately pick top queue item when it's the user's turn (5s silent delay)
+//   autoPickFromQueue — immediately pick from queue only when it's the user's turn
+//   autoPickGeneral   — immediately pick from queue, then EP fallback when it's the user's turn
 
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -22,7 +23,7 @@ import {
 
 export function useDraftQueue(leagueId, userEmail) {
   const [queue, setQueue] = useState([]);   // sorted by position ascending
-  const [settings, setSettings] = useState({ autoPickFromQueue: false });
+  const [settings, setSettings] = useState({ autoPickFromQueue: false, autoPickGeneral: false });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -35,7 +36,12 @@ export function useDraftQueue(leagueId, userEmail) {
     ]);
     setQueue(qData || []);
     if (sData) {
-      setSettings({ autoPickFromQueue: !!sData.auto_pick_from_queue });
+      const autoPickGeneral = !!sData.auto_pick_general;
+      const autoPickFromQueue = !!sData.auto_pick_from_queue;
+      setSettings({
+        autoPickFromQueue: autoPickGeneral ? false : autoPickFromQueue,
+        autoPickGeneral,
+      });
     }
     setLoading(false);
   }, [leagueId, userEmail]);
@@ -123,9 +129,15 @@ export function useDraftQueue(leagueId, userEmail) {
     setError(null);
     const prevSettings = settings;
     const merged = { ...settings, ...newSettings };
+    if (newSettings?.autoPickFromQueue === true) {
+      merged.autoPickGeneral = false;
+    } else if (newSettings?.autoPickGeneral === true) {
+      merged.autoPickFromQueue = false;
+    }
     setSettings(merged);
     const { error: dbError } = await upsertMemberSettings(leagueId, userEmail, {
       auto_pick_from_queue: merged.autoPickFromQueue,
+      auto_pick_general: merged.autoPickGeneral,
     });
     if (dbError) { console.error('Failed to save settings, rolling back:', dbError); setSettings(prevSettings); setError(dbError); }
   };

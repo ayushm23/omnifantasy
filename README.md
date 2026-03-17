@@ -130,7 +130,7 @@ npm run preview   # preview prod build
 - Live pick grid with Supabase Realtime (all browsers update instantly)
 - EP shown next to each team to guide picks
 - Personal draft queue — queue up picks in advance for auto-pick when it's your turn
-- Auto-pick from queue immediately when it becomes your turn (if enabled)
+- Auto-pick from queue (queue-only) or auto-pick in general (queue → EP) when it becomes your turn
 - Server-side timer expiry auto-pick (queue first, EP fallback)
 - "You're on the clock" emails sent after each pick (per-user preference)
 - 1-hour warning emails via scheduled cron job (every minute)

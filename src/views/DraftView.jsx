@@ -64,6 +64,9 @@ const DraftView = (props) => {
     const isCommissioner = selectedLeague?.commissionerEmail?.toLowerCase() === currentUser?.email?.toLowerCase();
     const canDraftForCurrentPicker = isMyTurn || isCommissioner;
     const isCommissionerPickingForOther = isCommissioner && !isMyTurn;
+    const autoPickMode = draftSettings?.autoPickGeneral
+      ? 'general'
+      : (draftSettings?.autoPickFromQueue ? 'queue' : 'off');
     const totalPicks = selectedLeague ? selectedLeague.members * (selectedLeague.draftRounds || 8) : 0;
     const completedPicks = supabasePicks?.length || 0;
     const isDraftComplete = totalPicks > 0 && completedPicks >= totalPicks;
@@ -154,6 +157,18 @@ const DraftView = (props) => {
       }
       onAddToQueue(sport, team);
     };
+    const setAutoPickFromQueueSetting = (checked) => {
+      onUpdateDraftSettings({
+        autoPickFromQueue: checked,
+        ...(checked ? { autoPickGeneral: false } : {}),
+      });
+    };
+    const setAutoPickGeneralSetting = (checked) => {
+      onUpdateDraftSettings({
+        autoPickGeneral: checked,
+        ...(checked ? { autoPickFromQueue: false } : {}),
+      });
+    };
 
     useEffect(() => {
       if (!selectedLeague?.sports?.length) return;
@@ -165,17 +180,19 @@ const DraftView = (props) => {
     useEffect(() => {
       const prevPick = prevPickRef.current;
       if (prevPick != null && effectiveCurrentPick < prevPick) {
-        if (isMyTurn && !!draftSettings?.autoPickFromQueue) {
+        const shouldHoldForAutoPick = autoPickMode === 'general' || (autoPickMode === 'queue' && hasValidQueueItem);
+        if (isMyTurn && shouldHoldForAutoPick) {
           setAutoPickHoldActive(true);
           setAutoPickHoldPickNumber(effectiveCurrentPick);
         }
       }
       prevPickRef.current = effectiveCurrentPick;
-    }, [effectiveCurrentPick, isMyTurn, draftSettings?.autoPickFromQueue]);
+    }, [effectiveCurrentPick, isMyTurn, autoPickMode, hasValidQueueItem]);
 
     useEffect(() => {
       if (!autoPickHoldActive) return;
-      if (!isMyTurn || !draftSettings?.autoPickFromQueue) {
+      const shouldHoldForAutoPick = autoPickMode === 'general' || (autoPickMode === 'queue' && hasValidQueueItem);
+      if (!isMyTurn || !shouldHoldForAutoPick) {
         setAutoPickHoldActive(false);
         return;
       }
@@ -186,7 +203,7 @@ const DraftView = (props) => {
       if (pickFilled || effectiveCurrentPick !== autoPickHoldPickNumber) {
         setAutoPickHoldActive(false);
       }
-    }, [autoPickHoldActive, autoPickHoldPickNumber, isMyTurn, draftSettings?.autoPickFromQueue, supabasePicks, effectiveCurrentPick]);
+    }, [autoPickHoldActive, autoPickHoldPickNumber, isMyTurn, autoPickMode, hasValidQueueItem, supabasePicks, effectiveCurrentPick]);
 
     useEffect(() => {
       if (sportsFilter !== 'ALL' && !(allSportCodes || []).includes(sportsFilter)) {
@@ -205,6 +222,17 @@ const DraftView = (props) => {
         sport,
         team,
       });
+
+    const hasValidQueueItem = useMemo(() => {
+      if (!queue || queue.length === 0) return false;
+      const pickedSet = new Set((supabasePicks || []).map(p => `${p.sport}::${p.team_name}`));
+      for (const item of queue) {
+        if (pickedSet.has(`${item.sport}::${item.team}`)) continue;
+        if (wouldBreakRequiredSportAvailability(currentUser?.email, item.sport, item.team)) continue;
+        return true;
+      }
+      return false;
+    }, [queue, supabasePicks, currentUser?.email, wouldBreakRequiredSportAvailability]);
 
     const draftGridRows = useMemo(() => {
       const pickedMap = new Map(
@@ -1294,7 +1322,8 @@ const DraftView = (props) => {
           >
             {(() => {
               const undrafted = (queue || []).filter(item => !(supabasePicks || []).some(p => p.sport === item.sport && p.team_name === item.team));
-              return <>Queue {undrafted.length > 0 ? `(${undrafted.length})` : '(empty)'}{undrafted.length > 0 && draftSettings?.autoPickFromQueue && <span className="text-xs text-blue-300 ml-1">[auto]</span>}</>;
+              const autoPickBadge = autoPickMode === 'queue' ? '[queue]' : (autoPickMode === 'general' ? '[auto]' : null);
+              return <>Queue {undrafted.length > 0 ? `(${undrafted.length})` : '(empty)'}{autoPickBadge && <span className="text-xs text-blue-300 ml-1">{autoPickBadge}</span>}</>;
             })()}
             <span className="text-slate-400 text-xs">{mobileSheet === 'queue' ? '▼' : '▲'}</span>
           </button>
@@ -1339,18 +1368,32 @@ const DraftView = (props) => {
                   </div>
                   <div>
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Draft Preferences</h3>
-                    <label className="flex items-start gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={draftSettings?.autoPickFromQueue || false}
-                        onChange={(e) => onUpdateDraftSettings({ autoPickFromQueue: e.target.checked })}
-                        className="mt-0.5 rounded bg-slate-900 border-slate-600"
-                      />
-                      <div>
-                        <div className="text-sm text-white">Auto-pick from queue</div>
-                        <div className="text-xs text-slate-400 mt-0.5">Automatically selects my top available queue pick immediately when it becomes my turn (this league only)</div>
-                      </div>
-                    </label>
+                    <div className="space-y-3">
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={draftSettings?.autoPickFromQueue || false}
+                          onChange={(e) => setAutoPickFromQueueSetting(e.target.checked)}
+                          className="mt-0.5 rounded bg-slate-900 border-slate-600"
+                        />
+                        <div>
+                          <div className="text-sm text-white">Auto-pick from queue</div>
+                          <div className="text-xs text-slate-400 mt-0.5">Queue only. If your queue is empty, you must pick manually.</div>
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={draftSettings?.autoPickGeneral || false}
+                          onChange={(e) => setAutoPickGeneralSetting(e.target.checked)}
+                          className="mt-0.5 rounded bg-slate-900 border-slate-600"
+                        />
+                        <div>
+                          <div className="text-sm text-white">Auto-pick in general</div>
+                          <div className="text-xs text-slate-400 mt-0.5">Queue first, then best EP if the queue is empty.</div>
+                        </div>
+                      </label>
+                    </div>
                   </div>
                 </div>
                 <div className="mt-5 pt-4 border-t border-slate-700">
@@ -1784,15 +1827,26 @@ const DraftView = (props) => {
                     </div>
                   )}
                   <div className="mt-4 pt-3 border-t border-slate-700">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={!!draftSettings?.autoPickFromQueue}
-                        onChange={(e) => onUpdateDraftSettings({ autoPickFromQueue: e.target.checked })}
-                        className="rounded bg-slate-900 border-slate-600"
-                      />
-                      <span className="text-sm text-slate-300">Auto-pick from queue</span>
-                    </label>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!draftSettings?.autoPickFromQueue}
+                          onChange={(e) => setAutoPickFromQueueSetting(e.target.checked)}
+                          className="rounded bg-slate-900 border-slate-600"
+                        />
+                        <span className="text-sm text-slate-300">Auto-pick from queue (queue only)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!draftSettings?.autoPickGeneral}
+                          onChange={(e) => setAutoPickGeneralSetting(e.target.checked)}
+                          className="rounded bg-slate-900 border-slate-600"
+                        />
+                        <span className="text-sm text-slate-300">Auto-pick in general (queue → EP)</span>
+                      </label>
+                    </div>
                   </div>
                   </>
                     );

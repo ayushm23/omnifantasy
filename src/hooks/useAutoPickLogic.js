@@ -6,8 +6,9 @@
 //      Commissioner auto-picks for any member as a failsafe.
 //
 //   2. Immediate auto-pick — fires when `currentPick` advances (or on page load)
-//      and `autoPickFromQueue` is enabled for the current user.
-//      Uses queue only (no EP fallback) so empty queues require manual picks.
+//      and an auto-pick mode is enabled for the current user.
+//      - Queue-only mode: queue only (no EP fallback).
+//      - General mode: queue first, then EP fallback.
 //      Picks immediately — no countdown delay.
 
 import { useEffect, useRef } from 'react';
@@ -31,7 +32,8 @@ export function useAutoPickLogic({
 }) {
   const lastAutoPickKeyRef = useRef(null);
   const prevCurrentPickRef = useRef(null);
-  const prevAutoPickFromQueueRef = useRef(!!draftSettings?.autoPickFromQueue);
+  const prevAutoPickModeRef = useRef('off');
+  const prevQueueSizeRef = useRef(queue?.length || 0);
 
   // Refs kept in sync every render so Effect 2 always reads the latest values.
   // Effect 2's dep array is intentionally minimal (currentPick/currentRound only)
@@ -230,14 +232,19 @@ export function useAutoPickLogic({
   useEffect(() => {
     const runImmediateAutoPick = async () => {
       const currentPick = supabaseDraftStateRef.current?.currentPick;
-      const autoPickEnabled = !!draftSettingsRef.current?.autoPickFromQueue;
-      const autoPickJustEnabled = autoPickEnabled && !prevAutoPickFromQueueRef.current;
-      prevAutoPickFromQueueRef.current = autoPickEnabled;
+      const autoPickQueue = !!draftSettingsRef.current?.autoPickFromQueue;
+      const autoPickGeneral = !!draftSettingsRef.current?.autoPickGeneral;
+      const autoPickMode = autoPickGeneral ? 'general' : (autoPickQueue ? 'queue' : 'off');
+      const autoPickModeChanged = autoPickMode !== prevAutoPickModeRef.current;
+      prevAutoPickModeRef.current = autoPickMode;
 
-      // Fire if pick advanced OR if auto-pick from queue was just enabled mid-turn.
+      // Fire if pick advanced OR auto-pick mode changed mid-turn OR queue size changed.
       // null !== currentPick is true on mount, so the page-load case fires.
       const pickAdvanced = prevCurrentPickRef.current !== currentPick;
-      if (!pickAdvanced && !autoPickJustEnabled) return;
+      const queueSize = queueRef.current?.length || 0;
+      const queueChanged = queueSize !== prevQueueSizeRef.current;
+      if (queueChanged) prevQueueSizeRef.current = queueSize;
+      if (!pickAdvanced && !autoPickModeChanged && !queueChanged) return;
       if (pickAdvanced) prevCurrentPickRef.current = currentPick ?? null;
 
       const draftState = supabaseDraftStateRef.current;
@@ -247,7 +254,7 @@ export function useAutoPickLogic({
         currentViewRef.current !== 'draft' ||
         !draftState ||
         !user ||
-        !draftSettingsRef.current?.autoPickFromQueue ||
+        autoPickMode === 'off' ||
         draftState.isDraftComplete
       ) return;
 
@@ -262,15 +269,21 @@ export function useAutoPickLogic({
       const picks  = supabasePicksRef.current;
       const league = selectedLeagueRef.current;
 
-      const candidates = buildCandidates(
-        user.email, picks, league, draftState,
-        getDraftPoolForSportRef.current, expectedPointsRef.current
-      );
-      if (candidates.length === 0) return;
+      const queuePick = getQueueAutopick(queueRef.current, picks, league, draftState, user.email);
+      if (!queuePick && autoPickMode === 'queue') return;
 
-      // Queue only for immediate auto-pick (no EP fallback)
-      const chosen = getQueueAutopick(queueRef.current, picks, league, draftState, user.email);
-      if (!chosen) return;
+      let chosen = queuePick;
+      if (!chosen) {
+        const candidates = buildCandidates(
+          user.email, picks, league, draftState,
+          getDraftPoolForSportRef.current, expectedPointsRef.current
+        );
+        if (candidates.length === 0) return;
+        const withEp = candidates.filter(c => c.ep != null);
+        chosen = withEp.length > 0
+          ? withEp.sort((a, b) => b.ep - a.ep)[0]
+          : candidates[0];
+      }
 
       try {
         lastAutoPickKeyRef.current = autoPickKey;
@@ -292,7 +305,7 @@ export function useAutoPickLogic({
 
     runImmediateAutoPick();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabaseDraftState?.currentPick, supabaseDraftState?.currentRound, draftSettings?.autoPickFromQueue, queue?.length]);
+  }, [supabaseDraftState?.currentPick, supabaseDraftState?.currentRound, draftSettings?.autoPickFromQueue, draftSettings?.autoPickGeneral, queue?.length]);
 
   return {};
 }
