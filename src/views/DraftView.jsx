@@ -166,29 +166,6 @@ const DraftView = (props) => {
       });
     };
 
-    const wouldBreakRequiredSportAvailability = (pickerEmail, sport, team) =>
-      wouldBreakSportCoverage({
-        sportRequirementEnabled,
-        leagueSports: selectedLeague?.sports,
-        pool: getDraftPoolForSport(sport),
-        draftEmails: (effectiveDraftOrder || []).map(m => m?.email?.toLowerCase()).filter(Boolean),
-        picks: supabasePicks,
-        pickerEmail,
-        sport,
-        team,
-      });
-
-    const hasValidQueueItem = useMemo(() => {
-      if (!queue || queue.length === 0) return false;
-      const pickedSet = new Set((supabasePicks || []).map(p => `${p.sport}::${p.team_name}`));
-      for (const item of queue) {
-        if (pickedSet.has(`${item.sport}::${item.team}`)) continue;
-        if (wouldBreakRequiredSportAvailability(currentUser?.email, item.sport, item.team)) continue;
-        return true;
-      }
-      return false;
-    }, [queue, supabasePicks, currentUser?.email, wouldBreakRequiredSportAvailability]);
-
     useEffect(() => {
       if (!selectedLeague?.sports?.length) return;
       if (gridSportFilter !== 'ALL' && !selectedLeague.sports.includes(gridSportFilter)) {
