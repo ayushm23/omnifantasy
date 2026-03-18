@@ -45,6 +45,18 @@ export const signOut = async () => {
   return { error };
 };
 
+export const resetPasswordForEmail = async (email) => {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin,
+  });
+  return { error };
+};
+
+export const updatePassword = async (newPassword) => {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  return { error };
+};
+
 export const getCurrentUser = async () => {
   const { data: { user } } = await supabase.auth.getUser();
   return user;
@@ -127,7 +139,7 @@ export const createLeague = async (leagueData) => {
     .from('leagues')
     .insert([{
       name: leagueData.name,
-      commissioner_email: leagueData.commissionerEmail,
+      commissioner_email: leagueData.commissionerEmail?.trim().toLowerCase(),
       sports: leagueData.sports,
       draft_rounds: leagueData.draftRounds,
       draft_timer: leagueData.draftTimer,
@@ -161,7 +173,7 @@ export const createLeague = async (leagueData) => {
 
   const members = leagueData.membersList.map((member, index) => ({
     league_id: league.id,
-    email: member.email,
+    email: member.email?.trim().toLowerCase(),
     name: member.name || knownNames[member.email?.trim().toLowerCase()] || '',
     draft_position: index,
     status: member.email?.toLowerCase() === commissionerEmail ? 'accepted' : 'pending',
@@ -195,8 +207,8 @@ export const getMyLeagues = async (userEmail) => {
   // Only show leagues where user is commissioner or a member
   if (data && !error) {
     const filtered = data.filter(league => {
-      const isCommissioner = league.commissioner_email === userEmail;
-      const isMember = league.league_members?.some(m => m.email === userEmail);
+      const isCommissioner = league.commissioner_email?.toLowerCase() === userEmail?.toLowerCase();
+      const isMember = league.league_members?.some(m => m.email?.toLowerCase() === userEmail?.toLowerCase());
       return isCommissioner || isMember;
     });
     return { data: filtered, error: null };
@@ -493,6 +505,7 @@ export const upsertResultsCache = async (sportCode, season, results) => {
 // ============ DRAFT QUEUE FUNCTIONS ============
 
 export const getDraftQueue = async (leagueId, userEmail) => {
+  userEmail = userEmail?.trim().toLowerCase();
   const { data, error } = await supabase
     .from('draft_queue')
     .select('*')
@@ -504,6 +517,7 @@ export const getDraftQueue = async (leagueId, userEmail) => {
 
 // Used by commissioner/autopick to read any picker's queue
 export const getPickerQueue = async (leagueId, pickerEmail) => {
+  pickerEmail = pickerEmail?.trim().toLowerCase();
   const { data, error } = await supabase
     .from('draft_queue')
     .select('*')
@@ -514,6 +528,7 @@ export const getPickerQueue = async (leagueId, pickerEmail) => {
 };
 
 export const addToQueue = async (leagueId, userEmail, sport, team, position) => {
+  userEmail = userEmail?.trim().toLowerCase();
   const { data, error } = await supabase
     .from('draft_queue')
     .insert([{ league_id: leagueId, user_email: userEmail, sport, team, position }])
@@ -542,6 +557,7 @@ export const reorderQueue = async (items) => {
 };
 
 export const clearQueue = async (leagueId, userEmail) => {
+  userEmail = userEmail?.trim().toLowerCase();
   const { error } = await supabase
     .from('draft_queue')
     .delete()
@@ -553,6 +569,7 @@ export const clearQueue = async (leagueId, userEmail) => {
 // ============ MEMBER SETTINGS FUNCTIONS ============
 
 export const getMemberSettings = async (leagueId, userEmail) => {
+  userEmail = userEmail?.trim().toLowerCase();
   const { data, error } = await supabase
     .from('draft_member_settings')
     .select('*')
@@ -563,6 +580,7 @@ export const getMemberSettings = async (leagueId, userEmail) => {
 };
 
 export const upsertMemberSettings = async (leagueId, userEmail, settings) => {
+  userEmail = userEmail?.trim().toLowerCase();
   const { data, error } = await supabase
     .from('draft_member_settings')
     .upsert(
@@ -643,6 +661,7 @@ export const getLeagueChat = async (leagueId, limit = 100) => {
 };
 
 export const sendChatMessage = async (leagueId, userEmail, userName, message) => {
+  userEmail = userEmail?.trim().toLowerCase();
   const { data, error } = await supabase
     .from('league_chat')
     .insert([{ league_id: leagueId, user_email: userEmail, user_name: userName, message }])
@@ -670,6 +689,7 @@ export const subscribeToLeagueChat = (leagueId, callback) => {
 // ============ LEAGUE INVITE / MEMBER MANAGEMENT ============
 
 export const acceptLeagueInvite = async (leagueId, userEmail) => {
+  userEmail = userEmail?.trim().toLowerCase();
   const { error } = await supabase
     .from('league_members')
     .update({ status: 'accepted' })
@@ -679,6 +699,7 @@ export const acceptLeagueInvite = async (leagueId, userEmail) => {
 };
 
 export const declineLeagueInvite = async (leagueId, userEmail) => {
+  userEmail = userEmail?.trim().toLowerCase();
   const { error } = await supabase
     .from('league_members')
     .update({ status: 'declined' })
