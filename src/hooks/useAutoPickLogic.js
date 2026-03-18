@@ -32,7 +32,6 @@ export function useAutoPickLogic({
 }) {
   const lastAutoPickKeyRef = useRef(null);
   const prevCurrentPickRef = useRef(null);
-  const prevAutoPickModeRef = useRef('off');
   const prevQueueSizeRef = useRef(queue?.length || 0);
 
   // Refs kept in sync every render so Effect 2 always reads the latest values.
@@ -235,16 +234,15 @@ export function useAutoPickLogic({
       const autoPickQueue = !!draftSettingsRef.current?.autoPickFromQueue;
       const autoPickGeneral = !!draftSettingsRef.current?.autoPickGeneral;
       const autoPickMode = autoPickGeneral ? 'general' : (autoPickQueue ? 'queue' : 'off');
-      const autoPickModeChanged = autoPickMode !== prevAutoPickModeRef.current;
-      prevAutoPickModeRef.current = autoPickMode;
 
-      // Fire if pick advanced OR auto-pick mode changed mid-turn OR queue size changed.
+      // Fire if pick advanced OR queue size changed (item added while already on the clock).
       // null !== currentPick is true on mount, so the page-load case fires.
+      // Toggling auto-pick settings mid-turn does NOT immediately fire — takes effect next turn.
       const pickAdvanced = prevCurrentPickRef.current !== currentPick;
       const queueSize = queueRef.current?.length || 0;
       const queueChanged = queueSize !== prevQueueSizeRef.current;
       if (queueChanged) prevQueueSizeRef.current = queueSize;
-      if (!pickAdvanced && !autoPickModeChanged && !queueChanged) return;
+      if (!pickAdvanced && !queueChanged) return;
       if (pickAdvanced) prevCurrentPickRef.current = currentPick ?? null;
 
       const draftState = supabaseDraftStateRef.current;
@@ -305,7 +303,7 @@ export function useAutoPickLogic({
 
     runImmediateAutoPick();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabaseDraftState?.currentPick, supabaseDraftState?.currentRound, draftSettings?.autoPickFromQueue, draftSettings?.autoPickGeneral, queue?.length]);
+  }, [supabaseDraftState?.currentPick, supabaseDraftState?.currentRound, queue?.length]);
 
   return {};
 }
