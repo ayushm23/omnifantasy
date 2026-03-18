@@ -25,6 +25,7 @@ import { getUserInitials, getUserDisplayName } from './utils/userDisplay';
 import { formatHourLabel } from './utils/format';
 import LeagueView from './views/LeagueView';
 import DraftView from './views/DraftView';
+import ConfirmModal from './components/ConfirmModal';
 import { AppContext } from './context/AppContext';
 import TeamPopup from './components/TeamPopup';
 import LeagueChat from './components/LeagueChat';
@@ -79,6 +80,8 @@ const OmnifantasyApp = () => {
   // Draft pick confirmation
   const [pendingPick, setPendingPick] = useState(null); // { sport, team }
   const [showPickConfirmation, setShowPickConfirmation] = useState(false);
+  // Queue autopick warning — lifted here so DraftView doesn't re-render when it shows
+  const [queueAutoPickWarning, setQueueAutoPickWarning] = useState(null); // { sport, team } | null
   
   const [currentView, setCurrentView] = useState('home'); // 'home', 'league', or 'draft'
   const [selectedLeagueId, setSelectedLeagueId] = useState(null);
@@ -213,6 +216,16 @@ const OmnifantasyApp = () => {
     error: queueError,
     updateSettings: updateDraftSettings,
   } = useDraftQueue(selectedLeagueId, currentUser?.email);
+
+  // Wrapper for add-to-queue: warns if autopick-from-queue is on (modal lives here, not in DraftView,
+  // so the draft grid never re-renders when the warning appears).
+  const handleAddToQueue = (sport, team) => {
+    if (myDraftSettings?.autoPickFromQueue) {
+      setQueueAutoPickWarning({ sport, team });
+    } else {
+      addToQueue(sport, team);
+    }
+  };
 
   // Global user preference — stored in Supabase auth user metadata so it applies across all leagues.
   // Default true: users receive OTC emails unless they explicitly opt out.
@@ -2544,7 +2557,7 @@ const OmnifantasyApp = () => {
           showPickConfirmation={showPickConfirmation}
           pendingPick={pendingPick}
           queue={myQueue}
-          onAddToQueue={addToQueue}
+          onAddToQueue={handleAddToQueue}
           onRemoveFromQueue={removeFromQueue}
           onMoveQueueItem={moveQueueItem}
           onClearQueue={clearQueue}
@@ -2573,6 +2586,20 @@ const OmnifantasyApp = () => {
           onClose={() => setShowAdminInbox(false)}
           isAdmin={isAdmin}
         />
+        {queueAutoPickWarning && (
+          <ConfirmModal
+            title="Auto-pick from queue is enabled"
+            message="Adding this to your queue will auto-pick it immediately if it's your turn. Disable auto-pick from queue first if you don't want that."
+            confirmLabel="Add anyway"
+            confirmClassName="bg-amber-600 hover:bg-amber-700 text-white"
+            onConfirm={() => {
+              const { sport, team } = queueAutoPickWarning;
+              setQueueAutoPickWarning(null);
+              addToQueue(sport, team);
+            }}
+            onCancel={() => setQueueAutoPickWarning(null)}
+          />
+        )}
       </AppContext.Provider>
     );
   }
