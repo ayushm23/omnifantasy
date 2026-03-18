@@ -37,7 +37,8 @@ const OmnifantasyApp = () => {
   const MAX_LEAGUE_MEMBERS = 20;
   const MAX_ADDITIONAL_MEMBERS = MAX_LEAGUE_MEMBERS - 1;
 
-  const { user, loading: authLoading, authMessage, signIn, signUp, signOut: handleLogoutDB, clearAuthMessage } = useAuth();
+  const { user, loading: authLoading, authMessage, signIn, signUp, signOut: handleLogoutDB, clearAuthMessage,
+          isPasswordRecovery, sendPasswordReset, doUpdatePassword } = useAuth();
   const isAuthenticated = !!user;
   const currentUser = user;
   const { isAdmin } = useAdmin(currentUser?.email);
@@ -49,6 +50,9 @@ const OmnifantasyApp = () => {
   const [loginLastName, setLoginLastName] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showHomeSportsModal, setShowHomeSportsModal] = useState(false);
@@ -558,6 +562,38 @@ const OmnifantasyApp = () => {
   };
 
 
+  const handleForgotPassword = async () => {
+    if (!loginEmail || !loginEmail.includes('@')) {
+      setLoginError('Please enter a valid email address');
+      return;
+    }
+    setLoginError('');
+    try {
+      await sendPasswordReset(loginEmail.trim().toLowerCase());
+    } catch (error) {
+      setLoginError(error.message || 'Failed to send reset email. Please try again.');
+    }
+  };
+
+  const handleSetNewPassword = async () => {
+    if (!resetPassword || resetPassword.length < 6) {
+      setLoginError('Password must be at least 6 characters');
+      return;
+    }
+    if (resetPassword !== resetPasswordConfirm) {
+      setLoginError('Passwords do not match');
+      return;
+    }
+    setLoginError('');
+    try {
+      await doUpdatePassword(resetPassword);
+      setResetPassword('');
+      setResetPasswordConfirm('');
+    } catch (error) {
+      setLoginError(error.message || 'Failed to update password. Please try again.');
+    }
+  };
+
   const handleLogout = async () => {
     await handleLogoutDB();
     setCurrentView('home');
@@ -910,141 +946,239 @@ const OmnifantasyApp = () => {
         <div className="bg-slate-800 rounded-2xl max-w-md w-full border border-slate-700 shadow-2xl">
           {/* Modal Content */}
           <div className="p-8">
-            <div className="mb-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={loginEmail}
-                  onChange={(e) => {
-                    setLoginEmail(e.target.value);
-                    setLoginError('');
-                  }}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
-                  placeholder="Enter your email"
-                  className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              {isSignUp && (
-                <>
+            {isPasswordRecovery ? (
+              /* ── Set New Password screen ── */
+              <>
+                <h2 className="text-xl font-bold text-white mb-6">Set New Password</h2>
+                <div className="mb-6 space-y-4">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-300 mb-2">
-                      First Name
-                    </label>
+                    <label className="block text-sm font-semibold text-slate-300 mb-2">New Password</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={resetPassword}
+                        onChange={(e) => { setResetPassword(e.target.value); setLoginError(''); }}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSetNewPassword()}
+                        placeholder="Enter new password"
+                        className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 pr-11 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-300 mb-2">Confirm New Password</label>
                     <input
-                      type="text"
-                      value={loginFirstName}
-                      onChange={(e) => {
-                        setLoginFirstName(e.target.value);
-                        setLoginError('');
-                      }}
-                      onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
-                      placeholder="Enter your first name"
+                      type="password"
+                      value={resetPasswordConfirm}
+                      onChange={(e) => { setResetPasswordConfirm(e.target.value); setLoginError(''); }}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSetNewPassword()}
+                      placeholder="Confirm new password"
                       className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
-
+                  {loginError && <div className="text-sm text-red-400">{loginError}</div>}
+                </div>
+                <button
+                  onClick={handleSetNewPassword}
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-lg"
+                >
+                  Set Password
+                </button>
+              </>
+            ) : isForgotPassword ? (
+              /* ── Forgot Password screen ── */
+              <>
+                <h2 className="text-xl font-bold text-white mb-2">Reset Password</h2>
+                <p className="text-sm text-slate-400 mb-6">Enter your email and we'll send you a reset link.</p>
+                <div className="mb-6 space-y-4">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-300 mb-2">
-                      Last Name
-                    </label>
+                    <label className="block text-sm font-semibold text-slate-300 mb-2">Email Address</label>
                     <input
-                      type="text"
-                      value={loginLastName}
-                      onChange={(e) => {
-                        setLoginLastName(e.target.value);
-                        setLoginError('');
-                      }}
-                      onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
-                      placeholder="Enter your last name"
+                      type="email"
+                      value={loginEmail}
+                      onChange={(e) => { setLoginEmail(e.target.value); setLoginError(''); }}
+                      onKeyPress={(e) => e.key === 'Enter' && handleForgotPassword()}
+                      placeholder="Enter your email"
                       className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
-                </>
-              )}
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={loginPassword}
-                    onChange={(e) => {
-                      setLoginPassword(e.target.value);
-                      setLoginError('');
-                    }}
-                    onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
-                    placeholder="Enter your password"
-                    className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 pr-11 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
+                  {authMessage && (
+                    <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                      <p className="text-sm text-green-400">{authMessage}</p>
+                    </div>
+                  )}
+                  {loginError && <div className="text-sm text-red-400">{loginError}</div>}
                 </div>
-              </div>
-
-              {authMessage && (
-                <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
-                  <p className="text-sm text-green-400">{authMessage}</p>
-                </div>
-              )}
-              {loginError && (
-                <div className="text-sm text-red-400">{loginError}</div>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              {isSignUp ? (
-                <>
+                <div className="space-y-3">
                   <button
-                    onClick={handleAuth}
+                    onClick={handleForgotPassword}
                     className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-lg"
                   >
-                    Sign Up
+                    Send Reset Email
                   </button>
                   <button
-                    onClick={() => {
-                      setIsSignUp(false);
-                      setLoginError('');
-                      clearAuthMessage();
-                    }}
+                    onClick={() => { setIsForgotPassword(false); setLoginError(''); clearAuthMessage(); }}
                     className="w-full text-slate-400 hover:text-white text-sm transition-colors"
                   >
-                    Already have an account? Log in instead
+                    Back to login
                   </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={handleAuth}
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-lg"
-                  >
-                    Log In
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsSignUp(true);
-                      setLoginError('');
-                      clearAuthMessage();
-                    }}
-                    className="w-full bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg font-semibold transition-all"
-                  >
-                    Create Account
-                  </button>
-                </>
-              )}
-            </div>
+                </div>
+              </>
+            ) : (
+              /* ── Normal Login / Sign Up screen ── */
+              <>
+                <div className="mb-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-300 mb-2">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={loginEmail}
+                      onChange={(e) => {
+                        setLoginEmail(e.target.value);
+                        setLoginError('');
+                      }}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
+                      placeholder="Enter your email"
+                      className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
 
+                  {isSignUp && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-300 mb-2">
+                          First Name
+                        </label>
+                        <input
+                          type="text"
+                          value={loginFirstName}
+                          onChange={(e) => {
+                            setLoginFirstName(e.target.value);
+                            setLoginError('');
+                          }}
+                          onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
+                          placeholder="Enter your first name"
+                          className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-300 mb-2">
+                          Last Name
+                        </label>
+                        <input
+                          type="text"
+                          value={loginLastName}
+                          onChange={(e) => {
+                            setLoginLastName(e.target.value);
+                            setLoginError('');
+                          }}
+                          onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
+                          placeholder="Enter your last name"
+                          className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-300 mb-2">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={loginPassword}
+                        onChange={(e) => {
+                          setLoginPassword(e.target.value);
+                          setLoginError('');
+                        }}
+                        onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
+                        placeholder="Enter your password"
+                        className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 pr-11 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                    {!isSignUp && (
+                      <button
+                        type="button"
+                        onClick={() => { setIsForgotPassword(true); setLoginError(''); clearAuthMessage(); }}
+                        className="text-xs text-slate-400 hover:text-slate-300 mt-1.5 text-right w-full transition-colors"
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
+
+                  {authMessage && (
+                    <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                      <p className="text-sm text-green-400">{authMessage}</p>
+                    </div>
+                  )}
+                  {loginError && (
+                    <div className="text-sm text-red-400">{loginError}</div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  {isSignUp ? (
+                    <>
+                      <button
+                        onClick={handleAuth}
+                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-lg"
+                      >
+                        Sign Up
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsSignUp(false);
+                          setLoginError('');
+                          clearAuthMessage();
+                        }}
+                        className="w-full text-slate-400 hover:text-white text-sm transition-colors"
+                      >
+                        Already have an account? Log in instead
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleAuth}
+                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-lg"
+                      >
+                        Log In
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsSignUp(true);
+                          setLoginError('');
+                          clearAuthMessage();
+                        }}
+                        className="w-full bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg font-semibold transition-all"
+                      >
+                        Create Account
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
         </div>

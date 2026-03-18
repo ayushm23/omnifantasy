@@ -79,13 +79,12 @@ Deno.serve(async (req) => {
     let deadlineHtml   = '';
     if (timerMs && state.pick_started_at) {
       const deadlineDate = computeDeadline(state.pick_started_at, timerMs, pauseStart, pauseEnd);
-      const formatted    = deadlineDate.toLocaleString('en-US', {
-        weekday: 'short', month: 'short', day: 'numeric',
-        hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
-        timeZone: 'America/New_York',
-      });
-      deadlineText = `\n\nPick timer expires ${formatted}.`;
-      deadlineHtml = `<p style="color:#f59e0b;">&#9201; Pick timer expires <strong>${escapeHtml(formatted)}</strong>.</p>`;
+      const minsLeft = Math.max(1, Math.round((deadlineDate.getTime() - Date.now()) / 60_000));
+      const timeStr  = minsLeft < 60
+        ? `~${minsLeft} minutes`
+        : minsLeft < 120 ? '~1 hour' : `~${Math.round(minsLeft / 60)} hours`;
+      deadlineText = `\n\nPick expires in ${timeStr}.`;
+      deadlineHtml = `<p style="color:#f59e0b;">&#9201; Pick expires in <strong>${timeStr}</strong>.</p>`;
     }
 
     const name    = picker.name || picker.email.split('@')[0];

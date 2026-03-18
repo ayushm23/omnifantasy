@@ -9,6 +9,8 @@ import {
   signUpWithEmail,
   signOut as signOutDB,
   getCurrentUser,
+  resetPasswordForEmail,
+  updatePassword,
   getIsAdmin,
   onAuthStateChange,
   createLeague as createLeagueDB,
@@ -32,6 +34,7 @@ export const useAuth = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authMessage, setAuthMessage] = useState('');
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   useEffect(() => {
     // Check current session
@@ -42,6 +45,9 @@ export const useAuth = () => {
 
     // Listen for auth changes
     const { data: { subscription } } = onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+      }
       setUser(session?.user || null);
     });
 
@@ -76,7 +82,21 @@ export const useAuth = () => {
     setAuthMessage('');
   };
 
-  return { user, loading, authMessage, signIn, signUp, signOut, clearAuthMessage };
+  const sendPasswordReset = async (email) => {
+    const { error } = await resetPasswordForEmail(email);
+    if (error) throw error;
+    setAuthMessage('✅ Password reset email sent! Check your inbox.');
+  };
+
+  const doUpdatePassword = async (newPassword) => {
+    const { error } = await updatePassword(newPassword);
+    if (error) throw error;
+    setIsPasswordRecovery(false);
+    setAuthMessage('✅ Password updated! You are now logged in.');
+  };
+
+  return { user, loading, authMessage, signIn, signUp, signOut, clearAuthMessage,
+           isPasswordRecovery, sendPasswordReset, doUpdatePassword };
 };
 
 // ============ ADMIN HOOK ============

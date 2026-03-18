@@ -431,7 +431,7 @@ async function fetchTournamentResults(tournamentConfig, yearOverride = null) {
     // ESPN golf scoreboard competitors are sorted by position.
     const isGolf = espnLeague.startsWith('golf');
     if (isGolf) {
-      const golfResult = parsGolfResults(event, name);
+      const golfResult = parseGolfResults(event, name);
       return { ...golfResult, approxMonth, year };
     }
 
@@ -478,7 +478,7 @@ async function fetchTournamentResults(tournamentConfig, yearOverride = null) {
  * ESPN golf events list competitors with position data.
  * We treat Top-4 as "final four", top-8 as "quarters" for fantasy scoring.
  */
-function parsGolfResults(event, name) {
+function parseGolfResults(event, name) {
   // Competitors are in the tournament-level competitors array, sorted by position
   const competitors = event.competitions?.[0]?.competitors || [];
   if (competitors.length === 0) return { name, is_complete: false };
