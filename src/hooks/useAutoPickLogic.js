@@ -81,8 +81,21 @@ export function useAutoPickLogic({
   const getQueueAutopick = (pickerQueue, picks, league, draftSt, pickerEmail) => {
     if (!pickerQueue || pickerQueue.length === 0) return null;
     const pickedSet = new Set((picks || []).map(p => `${p.sport}::${p.team_name}`));
+
+    // Mirror DraftView's isPickerSportFull: skip sports the picker already has when no flex picks remain.
+    const pickerPicks = (picks || []).filter(p => p.picker_email?.toLowerCase() === pickerEmail?.toLowerCase());
+    const sportReqEnabled = draftSt?.draftEverySportRequired !== false;
+    const missingSports = (league?.sports || []).filter(s => !pickerPicks.some(p => p.sport === s));
+    const draftRounds = league?.draftRounds || 0;
+    const pickerFlexRemaining = Math.max(
+      0,
+      draftRounds - pickerPicks.length - (sportReqEnabled ? missingSports.length : 0),
+    );
+    const pickerCoveredSports = new Set(pickerPicks.map(p => p.sport));
+
     for (const item of pickerQueue) {
       if (pickedSet.has(`${item.sport}::${item.team}`)) continue;
+      if (pickerFlexRemaining <= 0 && pickerCoveredSports.has(item.sport)) continue;
       if (wouldBreakRequiredSportAvailability(pickerEmail, item.sport, item.team, league, draftSt, picks)) continue;
       return { sport: item.sport, team: item.team };
     }
@@ -104,9 +117,18 @@ export function useAutoPickLogic({
       ? missingRequiredSports
       : (league?.sports || []);
 
+    // Mirror DraftView's isPickerSportFull: skip sports the picker already has when no flex picks remain.
+    const draftRounds = league?.draftRounds || 0;
+    const pickerFlexRemaining = Math.max(
+      0,
+      draftRounds - pickerPicks.length - (sportRequirementEnabled ? missingRequiredSports.length : 0),
+    );
+    const pickerCoveredSports = new Set(pickerPicks.map(p => p.sport));
+
     const pickedSet = new Set((picks || []).map(p => `${p.sport}::${p.team_name}`));
     const candidates = [];
     for (const sport of candidateSports) {
+      if (pickerFlexRemaining <= 0 && pickerCoveredSports.has(sport)) continue;
       const teams = getDraftPool(sport) || [];
       for (const team of teams) {
         if (pickedSet.has(`${sport}::${team}`)) continue;

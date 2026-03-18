@@ -231,7 +231,7 @@ export function wouldBreakSportCoverage({
 export function buildCandidates(
   pickerEmail: string,
   picks: Array<{ sport: string; team_name: string; picker_email: string }>,
-  league: { sports: string[] },
+  league: { sports: string[]; draft_rounds?: number },
   draftState: { draft_every_sport_required?: boolean; draft_order?: unknown[] },
   epMap: Record<string, Record<string, number>>,
 ) {
@@ -247,6 +247,14 @@ export function buildCandidates(
     ? missingRequiredSports
     : (league?.sports || []);
 
+  // Mirror DraftView's isPickerSportFull: skip sports the picker already has when no flex picks remain.
+  const draftRounds = league?.draft_rounds || 0;
+  const pickerFlexRemaining = Math.max(
+    0,
+    draftRounds - pickerPicks.length - (sportRequirementEnabled ? missingRequiredSports.length : 0),
+  );
+  const pickerCoveredSports = new Set(pickerPicks.map(p => p.sport));
+
   const draftEmails = (draftState.draft_order || [])
     .map(m => normalizeDraftPicker(m)?.email?.toLowerCase())
     .filter(Boolean) as string[];
@@ -254,6 +262,7 @@ export function buildCandidates(
   const pickedSet = new Set((picks || []).map(p => `${p.sport}::${p.team_name}`));
   const candidates: Array<{ sport: string; team: string; ep: number | null }> = [];
   for (const sport of candidateSports) {
+    if (pickerFlexRemaining <= 0 && pickerCoveredSports.has(sport)) continue;
     const teams = getTeamPoolForSport(sport);
     for (const team of teams) {
       if (pickedSet.has(`${sport}::${team}`)) continue;
@@ -276,18 +285,33 @@ export function buildCandidates(
 export function getQueueAutopick(
   queue: Array<{ sport: string; team: string }>,
   picks: Array<{ sport: string; team_name: string; picker_email: string }>,
-  league: { sports: string[] },
+  league: { sports: string[]; draft_rounds?: number },
   draftState: { draft_every_sport_required?: boolean; draft_order?: unknown[] },
   pickerEmail: string,
 ): { sport: string; team: string } | null {
   if (!queue || queue.length === 0) return null;
   const pickedSet = new Set((picks || []).map(p => `${p.sport}::${p.team_name}`));
+
+  // Mirror DraftView's isPickerSportFull: skip sports the picker already has when no flex picks remain.
+  const pickerPicks = (picks || []).filter(p => p.picker_email?.toLowerCase() === pickerEmail.toLowerCase());
+  const sportRequirementEnabled = draftState?.draft_every_sport_required !== false;
+  const missingRequiredSports = (league?.sports || []).filter(
+    s => !pickerPicks.some(p => p.sport === s),
+  );
+  const draftRounds = league?.draft_rounds || 0;
+  const pickerFlexRemaining = Math.max(
+    0,
+    draftRounds - pickerPicks.length - (sportRequirementEnabled ? missingRequiredSports.length : 0),
+  );
+  const pickerCoveredSports = new Set(pickerPicks.map(p => p.sport));
+
   for (const item of queue) {
     if (pickedSet.has(`${item.sport}::${item.team}`)) continue;
+    if (pickerFlexRemaining <= 0 && pickerCoveredSports.has(item.sport)) continue;
     const pool = getTeamPoolForSport(item.sport);
     if (!pool || pool.length === 0) continue;
     if (wouldBreakSportCoverage({
-      sportRequirementEnabled: draftState?.draft_every_sport_required !== false,
+      sportRequirementEnabled,
       leagueSports: league?.sports || [],
       pool,
       draftEmails: (draftState.draft_order || [])
