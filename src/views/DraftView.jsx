@@ -141,7 +141,6 @@ const DraftView = (props) => {
     const [selectedTeamInfo, setSelectedTeamInfo] = useState(null); // { sport, team, currentEP } | null
     const teamInfoFromSportsRef = useRef(false); // true when popup was opened from the sports catalog modal
     const [showClearQueueConfirm, setShowClearQueueConfirm] = useState(false);
-    const [queueAutoPickWarning, setQueueAutoPickWarning] = useState(null);
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [lockToast, setLockToast] = useState(null); // string | null
     const lockToastTimerRef = useRef(null);
@@ -151,10 +150,6 @@ const DraftView = (props) => {
       lockToastTimerRef.current = setTimeout(() => setLockToast(null), 2500);
     };
     const handleAddToQueue = (sport, team) => {
-      if (draftSettings?.autoPickFromQueue) {
-        setQueueAutoPickWarning({ sport, team });
-        return;
-      }
       onAddToQueue(sport, team);
     };
     const setAutoPickFromQueueSetting = (checked) => {
@@ -795,20 +790,7 @@ const DraftView = (props) => {
                 onCancel={() => setShowClearQueueConfirm(false)}
               />
             )}
-            {queueAutoPickWarning && (
-              <ConfirmModal
-                title="Auto-pick from queue is enabled"
-                message="Adding this to your queue will auto-pick it immediately if it's your turn. Please disable auto-pick from queue first if you do not want that."
-                confirmLabel="Add anyway"
-                confirmClassName="bg-amber-600 hover:bg-amber-700 text-white"
-                onConfirm={() => {
-                  const { sport, team } = queueAutoPickWarning;
-                  setQueueAutoPickWarning(null);
-                  onAddToQueue(sport, team);
-                }}
-                onCancel={() => setQueueAutoPickWarning(null)}
-              />
-            )}
+
 
             <div className="mb-4 flex flex-col md:flex-row gap-2">
               <input

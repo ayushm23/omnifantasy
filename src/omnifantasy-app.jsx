@@ -928,7 +928,7 @@ const OmnifantasyApp = () => {
   }
 
   // Login/Signup Modal
-  if (!isAuthenticated || showLoginModal) {
+  if (!isAuthenticated || showLoginModal || isPasswordRecovery) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         {/* Fixed Header */}
@@ -1119,7 +1119,7 @@ const OmnifantasyApp = () => {
                       <button
                         type="button"
                         onClick={() => { setIsForgotPassword(true); setLoginError(''); clearAuthMessage(); }}
-                        className="text-xs text-slate-400 hover:text-slate-300 mt-1.5 text-right w-full transition-colors"
+                        className="text-sm text-blue-400 hover:text-blue-300 underline mt-2 text-right w-full transition-colors block"
                       >
                         Forgot password?
                       </button>
