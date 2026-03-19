@@ -107,6 +107,15 @@ const OmnifantasyApp = () => {
     new URLSearchParams(window.location.search).get('draft')
   );
 
+  // Capture session nav restore synchronously at mount (before any effects run)
+  const NAV_SESSION_KEY = 'omnifantasy_nav';
+  const navRestoreRef = useRef((() => {
+    try {
+      const raw = sessionStorage.getItem(NAV_SESSION_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  })());
+
   // League Chat
   const [showLeagueChat, setShowLeagueChat] = useState(false);
 
@@ -371,29 +380,66 @@ const OmnifantasyApp = () => {
   // The league ID is captured in a ref at mount (synchronously) so it's never
   // lost if the effect fires before leagues are loaded. Once navigation fires
   // the ref is cleared so subsequent league reloads don't re-navigate.
+  // Also handles session-restore: on page refresh, returns user to their last view.
   useEffect(() => {
-    const targetLeagueId = pendingDraftLeagueIdRef.current;
-    if (!targetLeagueId) return;
     if (!user || leaguesLoading) return;
 
-    const league = leagues.find(l => l.id === targetLeagueId);
-    if (!league) return;
+    const targetLeagueId = pendingDraftLeagueIdRef.current;
+    if (targetLeagueId) {
+      const league = leagues.find(l => l.id === targetLeagueId);
+      if (!league) return;
+
+      const isMember = league.membersList?.some(
+        m => m.email.toLowerCase() === user.email.toLowerCase()
+      );
+      const isCommissioner = league.commissionerEmail?.toLowerCase() === user.email.toLowerCase();
+      if (!isMember && !isCommissioner) return;
+
+      // Only clear the ref and URL once we know we're navigating
+      pendingDraftLeagueIdRef.current = null;
+      navRestoreRef.current = null; // deep-link takes precedence over session restore
+      window.history.replaceState({}, '', window.location.pathname);
+
+      setSelectedLeagueId(targetLeagueId);
+      const isDraftActive = league.draftStarted && !league.draftComplete;
+      setCurrentView(isDraftActive ? 'draft' : 'league');
+      return;
+    }
+
+    // Session restore: return user to where they were before a page refresh
+    const nav = navRestoreRef.current;
+    if (!nav?.leagueId) return;
+
+    const league = leagues.find(l => l.id === nav.leagueId);
+    if (!league) { navRestoreRef.current = null; return; }
 
     const isMember = league.membersList?.some(
       m => m.email.toLowerCase() === user.email.toLowerCase()
     );
     const isCommissioner = league.commissionerEmail?.toLowerCase() === user.email.toLowerCase();
-    if (!isMember && !isCommissioner) return;
+    if (!isMember && !isCommissioner) { navRestoreRef.current = null; return; }
 
-    // Only clear the ref and URL once we know we're navigating
-    pendingDraftLeagueIdRef.current = null;
-    window.history.replaceState({}, '', window.location.pathname);
+    navRestoreRef.current = null;
 
-    setSelectedLeagueId(targetLeagueId);
-    // Draft active → draft view; not started or complete → league view
+    setSelectedLeagueId(nav.leagueId);
+    if (nav.leagueTab) setLeagueTab(nav.leagueTab);
+    // If stored view was 'draft' but draft is no longer active, fall back to league view
     const isDraftActive = league.draftStarted && !league.draftComplete;
-    setCurrentView(isDraftActive ? 'draft' : 'league');
+    setCurrentView(nav.view === 'draft' && isDraftActive ? 'draft' : 'league');
   }, [user, leaguesLoading, leagues]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist current view to sessionStorage so page refresh restores the user's location
+  useEffect(() => {
+    if (currentView === 'home' || !selectedLeagueId) {
+      sessionStorage.removeItem(NAV_SESSION_KEY);
+    } else {
+      sessionStorage.setItem(NAV_SESSION_KEY, JSON.stringify({
+        view: currentView,
+        leagueId: selectedLeagueId,
+        leagueTab,
+      }));
+    }
+  }, [currentView, selectedLeagueId, leagueTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getExpectedPoints = (sportCode, teamName) => {
     return expectedPoints?.[sportCode]?.[teamName] ?? null;
@@ -608,6 +654,7 @@ const OmnifantasyApp = () => {
   };
 
   const handleLogout = async () => {
+    sessionStorage.removeItem(NAV_SESSION_KEY);
     await handleLogoutDB();
     setCurrentView('home');
     // Clear form fields and messages
