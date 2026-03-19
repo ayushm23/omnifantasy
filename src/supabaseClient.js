@@ -686,6 +686,27 @@ export const subscribeToLeagueChat = (leagueId, callback) => {
     .subscribe();
 };
 
+export const fetchChatLastRead = async (leagueId, userEmail) => {
+  userEmail = userEmail?.trim().toLowerCase();
+  const { data, error } = await supabase
+    .from('league_members')
+    .select('chat_last_read_at')
+    .eq('league_id', leagueId)
+    .eq('email', userEmail)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.chat_last_read_at || null;
+};
+
+export const updateChatLastRead = async (leagueId, userEmail, timestamp) => {
+  userEmail = userEmail?.trim().toLowerCase();
+  await supabase
+    .from('league_members')
+    .update({ chat_last_read_at: timestamp })
+    .eq('league_id', leagueId)
+    .eq('email', userEmail);
+};
+
 // ============ LEAGUE INVITE / MEMBER MANAGEMENT ============
 
 export const acceptLeagueInvite = async (leagueId, userEmail) => {

@@ -11,7 +11,7 @@
 // - clearUnread() — reset unread badge to 0 (call when chat panel is opened)
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getLeagueChat, sendChatMessage, subscribeToLeagueChat, unsubscribe } from './supabaseClient';
+import { getLeagueChat, sendChatMessage, subscribeToLeagueChat, unsubscribe, fetchChatLastRead, updateChatLastRead } from './supabaseClient';
 
 const lastReadKey = (leagueId, userEmail) => `chat_last_read_${leagueId}_${userEmail}`;
 const channelKey = (leagueId, userEmail) => `chat_read_channel_${leagueId}_${userEmail}`;
@@ -29,7 +29,7 @@ export function useChatMessages(leagueId, userEmail, isOpen) {
     isOpenRef.current = isOpen;
   }, [isOpen]);
 
-  // Load history when leagueId changes; seed unread count from localStorage
+  // Load history when leagueId changes; seed unread count from localStorage + DB (cross-device sync)
   useEffect(() => {
     if (!leagueId) {
       setMessages([]);
@@ -38,14 +38,23 @@ export function useChatMessages(leagueId, userEmail, isOpen) {
     }
     setLoading(true);
     setUnreadCount(0);
-    getLeagueChat(leagueId).then(({ data }) => {
+    Promise.all([
+      getLeagueChat(leagueId),
+      userEmail ? fetchChatLastRead(leagueId, userEmail) : Promise.resolve(null),
+    ]).then(([{ data }, dbLastRead]) => {
       setMessages(data);
       setLoading(false);
-      // Count messages from others that arrived since the user last had the panel open
       if (userEmail && data?.length) {
-        const lastRead = localStorage.getItem(lastReadKey(leagueId, userEmail));
+        const localLastRead = localStorage.getItem(lastReadKey(leagueId, userEmail));
+        // Use whichever timestamp is newer (cross-device: DB may be ahead of this device)
+        const lastRead = localLastRead && dbLastRead
+          ? (localLastRead > dbLastRead ? localLastRead : dbLastRead)
+          : (localLastRead || dbLastRead || null);
+        if (lastRead && lastRead !== localLastRead) {
+          localStorage.setItem(lastReadKey(leagueId, userEmail), lastRead);
+        }
         lastReadRef.current = lastRead;
-        const count = data.filter((m) => {
+        const count = (data || []).filter((m) => {
           if (m.user_email === userEmail) return false;
           if (!lastRead) return true;
           return m.created_at > lastRead;
@@ -144,6 +153,8 @@ export function useChatMessages(leagueId, userEmail, isOpen) {
       if (channelRef.current) {
         channelRef.current.postMessage({ type: 'chat_read', timestamp: ts });
       }
+      // Persist to DB so other devices pick up the read state on next load
+      updateChatLastRead(leagueId, userEmail, ts);
     }
   }, [leagueId, userEmail]);
 
