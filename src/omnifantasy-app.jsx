@@ -88,8 +88,11 @@ const OmnifantasyApp = () => {
   const [activeTab, setActiveTab] = useState('active'); // For homepage: 'active' or 'completed'
   const [leagueTab, setLeagueTab] = useState('my-roster'); // For league page: 'my-roster', 'standings', 'big-board', 'draft-results'
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createLeagueError, setCreateLeagueError] = useState('');
+  const [homeError, setHomeError] = useState('');
   const [showDraftSettingsModal, setShowDraftSettingsModal] = useState(false);
   const [showStartDraftConfirmation, setShowStartDraftConfirmation] = useState(false);
+  const [startDraftError, setStartDraftError] = useState('');
   const [homeSportsSearch, setHomeSportsSearch] = useState('');
   const [homeSportsFilter, setHomeSportsFilter] = useState('ALL');
   const [homeSportsSortBy, setHomeSportsSortBy] = useState('ep');
@@ -852,11 +855,11 @@ const OmnifantasyApp = () => {
 
     // Hard guard after dedupe: minimum 2 total members (including commissioner)
     if (membersList.length < 2) {
-      alert('League must have at least 2 total members including commissioner.');
+      setCreateLeagueError('League must have at least 2 total members including commissioner.');
       return;
     }
     if (membersList.length > MAX_LEAGUE_MEMBERS) {
-      alert(`League can have at most ${MAX_LEAGUE_MEMBERS} total members including commissioner.`);
+      setCreateLeagueError(`League can have at most ${MAX_LEAGUE_MEMBERS} total members including commissioner.`);
       return;
     }
 
@@ -898,7 +901,7 @@ const OmnifantasyApp = () => {
       setEmailErrors({});
       setShowCreateModal(false);
     } catch (error) {
-      alert('Error creating league: ' + error.message);
+      setCreateLeagueError('Error creating league: ' + error.message);
     }
   };
 
@@ -949,7 +952,7 @@ const OmnifantasyApp = () => {
       const isMember = league.membersList && league.membersList.some(m => m.email.toLowerCase() === currentUser?.email.toLowerCase());
       
       if (!isCommissioner && !isMember) {
-        alert('You do not have access to this league.');
+        setHomeError('You do not have access to this league.');
         return;
       }
     }
@@ -1295,7 +1298,7 @@ const OmnifantasyApp = () => {
       setTimeout(() => sendOtcEmail(selectedLeagueId), 2000);
     }).catch(error => {
       console.error('Error starting draft:', error);
-      alert('Failed to start draft: ' + error.message);
+      setStartDraftError('Failed to start draft: ' + error.message);
     });
   };
 
@@ -1402,6 +1405,13 @@ const OmnifantasyApp = () => {
 
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-3 md:px-6 py-6 md:py-8">
+          {/* Home-level error banner (e.g. unauthorized league access) */}
+          {homeError && (
+            <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-sm text-red-400 flex items-center justify-between">
+              <span>{homeError}</span>
+              <button onClick={() => setHomeError('')} className="text-red-400 hover:text-red-300 ml-3 leading-none">✕</button>
+            </div>
+          )}
           {/* Leagues Header with Tabs */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
@@ -1713,7 +1723,7 @@ const OmnifantasyApp = () => {
               <div className="flex items-center justify-between p-6 border-b border-slate-700 bg-slate-800 rounded-t-2xl">
                 <h2 className="text-2xl font-bold text-white">Create New League</h2>
                 <button
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={() => { setShowCreateModal(false); setCreateLeagueError(''); }}
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   <X size={24} />
@@ -1722,6 +1732,12 @@ const OmnifantasyApp = () => {
 
               {/* Modal Content */}
               <div className="p-6 space-y-8">
+                {/* Inline error banner */}
+                {createLeagueError && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-sm text-red-400">
+                    {createLeagueError}
+                  </div>
+                )}
                 {/* Commissioner Notice */}
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
                   <p className="text-sm text-blue-400">
@@ -1884,7 +1900,7 @@ const OmnifantasyApp = () => {
 
                 <div className="flex items-center justify-end gap-3">
                   <button
-                    onClick={() => setShowCreateModal(false)}
+                    onClick={() => { setShowCreateModal(false); setCreateLeagueError(''); }}
                     className="px-6 py-3 text-slate-400 hover:text-white transition-colors font-semibold"
                   >
                     Cancel
@@ -2538,6 +2554,8 @@ const OmnifantasyApp = () => {
           showDraftSettingsModal={showDraftSettingsModal}
           showStartDraftConfirmation={showStartDraftConfirmation}
           startDraft={startDraft}
+          startDraftError={startDraftError}
+          setStartDraftError={setStartDraftError}
           resultsError={resultsError}
           retryResults={retryResults}
           setShowUserSettings={setShowUserSettings}

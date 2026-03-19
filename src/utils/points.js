@@ -123,6 +123,9 @@ export function filterResultsForLeague(results, draftDate) {
   if (!draftDate || !results) return results;
   const draft = new Date(draftDate);
   if (isNaN(draft.getTime())) return results;
+  // Normalize draft to UTC midnight to avoid timezone offsets when comparing
+  // against event months (which are also expressed as UTC midnight via Date.UTC).
+  const draftUtcMs = Date.UTC(draft.getUTCFullYear(), draft.getUTCMonth(), draft.getUTCDate());
 
   const filtered = {};
   for (const [sport, sportResult] of Object.entries(results)) {
@@ -132,11 +135,12 @@ export function filterResultsForLeague(results, draftDate) {
       continue;
     }
 
-    // Multi-event: keep only events that start on or after the draft date
+    // Multi-event: keep only events that start on or after the draft date.
+    // Use Date.UTC for both sides so timezone offsets don't shift the comparison.
     const relevantEvents = sportResult.events.filter(evt => {
       if (!evt.year || !evt.approxMonth) return true; // no metadata → include
-      const evtStart = new Date(evt.year, evt.approxMonth - 1, 1); // 1st of the month
-      return evtStart >= draft;
+      const evtStartMs = Date.UTC(evt.year, evt.approxMonth - 1, 1); // 1st of the month, UTC
+      return evtStartMs >= draftUtcMs;
     });
 
     // Recompute rankings from the filtered events so scoring reflects only

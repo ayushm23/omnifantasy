@@ -2,7 +2,7 @@
 // Centered modal popup showing EP trend chart and recent news for a team/player.
 // Opens when any team name is clicked across DraftView and LeagueView.
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { X, ExternalLink } from 'lucide-react';
 import {
   LineChart,
@@ -158,6 +158,18 @@ export default function TeamPopup({ sport, team, currentEP, onClose, onDraft, dr
       return (seasons?.seasonStarted ? seasons.current : seasons?.previous) ?? null;
     }
   );
+  // Reset selectedSeason whenever sport changes so a popup reused for a different
+  // sport (e.g. NFL → F1) starts with the correct default season rather than the stale one.
+  useEffect(() => {
+    const s = SPORT_SEASONS[sport];
+    const isNoHistory = sport === 'WorldCup' || sport === 'Euro';
+    if (isNoHistory && s?.current) {
+      setSelectedSeason(s.current);
+    } else {
+      setSelectedSeason((s?.seasonStarted ? s.current : s?.previous) ?? null);
+    }
+  }, [sport]);
+
   const { history, loading: epLoading } = useEPHistory(sport, team);
   const { news, hasTeamNews, loading: newsLoading, newsError } = useTeamNews(sport, team);
   const { performance, loading: perfLoading, error: perfError } = useTeamPerformance(sport, team, selectedSeason);

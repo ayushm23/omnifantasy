@@ -54,6 +54,7 @@ export default function LeagueChat({ leagueId, currentUser, isOpen, onOpen, onCl
   const [inputText, setInputText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [sendError, setSendError] = useState(null);
+  const [sending, setSending] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -77,12 +78,17 @@ export default function LeagueChat({ leagueId, currentUser, isOpen, onOpen, onCl
 
   const handleSend = async () => {
     const text = inputText.trim();
-    if (!text || text.length > 500) return;
-    setInputText('');
+    if (!text || text.length > 500 || sending) return;
+    setSending(true);
     setShowEmoji(false);
     setSendError(null);
     const { error } = await sendMessage(text, displayName);
-    if (error) setSendError('Failed to send. Try again.');
+    if (error) {
+      setSendError('Failed to send. Try again.');
+    } else {
+      setInputText('');
+    }
+    setSending(false);
   };
 
   const handleKeyDown = (e) => {
@@ -231,7 +237,7 @@ export default function LeagueChat({ leagueId, currentUser, isOpen, onOpen, onCl
               </div>
               <button
                 onClick={handleSend}
-                disabled={!inputText.trim() || overLimit}
+                disabled={!inputText.trim() || overLimit || sending}
                 className="flex-shrink-0 mb-0.5 w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white flex items-center justify-center transition-colors"
                 title="Send (Enter)"
               >

@@ -22,6 +22,7 @@ const LeagueView = (props) => {
     leagueTab, setLeagueTab, standings, getRankChange, draftBoard,
     updateLeague, reloadLeagues,
     showDraftSettingsModal, showStartDraftConfirmation, startDraft,
+    startDraftError, setStartDraftError,
     resultsError, retryResults, setShowUserSettings, showUserSettings,
   } = props;
 
@@ -1677,22 +1678,27 @@ const LeagueView = (props) => {
               })()}
             </div>
 
-            <div className="flex gap-3 p-5 border-t border-slate-700 shrink-0">
-              <button
-                onClick={() => setShowStartDraftConfirmation(false)}
-                className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-all"
-              >
-                Go Back
-              </button>
-              <button
-                onClick={() => {
-                  setShowStartDraftConfirmation(false);
-                  startDraft();
-                }}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-semibold transition-all"
-              >
-                Start Draft
-              </button>
+            <div className="flex flex-col gap-3 p-5 border-t border-slate-700 shrink-0">
+              {startDraftError && (
+                <p className="text-sm text-red-400 text-center">{startDraftError}</p>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowStartDraftConfirmation(false); setStartDraftError?.(''); }}
+                  className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-all"
+                >
+                  Go Back
+                </button>
+                <button
+                  onClick={() => {
+                    setShowStartDraftConfirmation(false);
+                    startDraft();
+                  }}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-semibold transition-all"
+                >
+                  Start Draft
+                </button>
+              </div>
             </div>
           </div>
         </div>

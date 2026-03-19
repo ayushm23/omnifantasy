@@ -371,8 +371,8 @@ export const makePick = async (pickData) => {
   } catch (guardError) {
     // Only swallow permission/network errors on guard reads — these are non-fatal.
     // Re-throw unexpected errors so callers know the guard couldn't run.
-    const code = guardError?.code || guardError?.status;
-    if (code && (code === '42501' || code === 'PGRST116' || code === 401 || code === 403)) {
+    const code = String(guardError?.code || guardError?.status || '');
+    if (code && (code === '42501' || code === 'PGRST116' || code === '401' || code === '403')) {
       // RLS / auth error on guard query — fall through and let the insert RLS handle it
     } else {
       console.error('[makePick] guard error — pick blocked as a safety measure:', guardError);

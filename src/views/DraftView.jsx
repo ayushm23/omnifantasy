@@ -149,6 +149,8 @@ const DraftView = (props) => {
       setLockToast(msg);
       lockToastTimerRef.current = setTimeout(() => setLockToast(null), 2500);
     };
+    // Clear the toast timer on unmount to avoid setState on an unmounted component
+    useEffect(() => () => clearTimeout(lockToastTimerRef.current), []);
     const handleAddToQueue = (sport, team) => {
       onAddToQueue(sport, team);
     };

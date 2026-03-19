@@ -116,6 +116,9 @@ async function fetchOddsForSportKey(apiKey, sportKey, regions = DEFAULT_ODDS_REG
     totalProb += rawProbs[name];
   }
 
+  // Guard: no valid bookmaker outcomes → return empty so callers show "TBD" instead of NaN
+  if (totalProb === 0) return {};
+
   // Normalize and compute expected points, mapping API names to our teamPool names
   const result = {};
   for (const name in rawProbs) {
