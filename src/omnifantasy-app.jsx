@@ -12,6 +12,7 @@ import {
   AVAILABLE_SPORTS,
   TEAM_POOLS,
   EP_DRIVEN_POOL_SPORTS,
+  EP_POOL_WHITELIST_SPORTS,
   getSelectableSports,
   getSportNameByCode,
   getSportDisplayCode,
@@ -468,6 +469,9 @@ const OmnifantasyApp = () => {
     }
 
     const topTeamsByEP = Object.entries(sportEP)
+      .filter(([teamName]) =>
+        !EP_POOL_WHITELIST_SPORTS.has(sportCode) || basePool.includes(teamName)
+      )
       .sort((a, b) => b[1] - a[1])
       .map(([teamName]) => teamName);
 

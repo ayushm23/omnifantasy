@@ -50,6 +50,11 @@ TEAM_POOLS.WTA = TEAM_POOLS_BY_CODE.WomensTennis;
 
 export const EP_DRIVEN_POOL_SPORTS = new Set(['UCL', 'Euro', 'WorldCup', 'Golf', 'MensTennis', 'WomensTennis', 'F1']);
 
+// Sports where TEAM_POOLS acts as a whitelist when filtering EP data.
+// Prevents retired/inactive players from appearing just because they have Odds API entries.
+// WorldCup/UCL/Euro intentionally excluded — their pools auto-expand from EP.
+export const EP_POOL_WHITELIST_SPORTS = new Set(['Golf', 'MensTennis', 'WomensTennis', 'F1']);
+
 export const isTournamentYear = (sportCode, year = new Date().getFullYear()) => {
   if (sportCode === 'Euro') return year >= 2024 && (year - 2024) % 4 === 0;
   if (sportCode === 'WorldCup') return year >= 2026 && (year - 2026) % 4 === 0;
