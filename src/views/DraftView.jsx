@@ -1794,8 +1794,20 @@ const DraftView = (props) => {
                             !wouldBreakRequiredSportAvailability(currentPicker?.email, item.sport, item.team)
                           );
                           return (
-                            <div key={item.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-600/30 bg-slate-800/40">
-                              <span className="text-xs font-mono text-slate-400 w-5 shrink-0 text-center">{idx + 1}.</span>
+                            <div key={item.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-slate-600/30 bg-slate-800/40">
+                              {/* Stacked ↑↓ reorder column — compact, touch-friendly */}
+                              <div className="flex flex-col shrink-0">
+                                <button
+                                  onClick={() => onMoveQueueItem(item.id, 'up')}
+                                  disabled={idx === 0}
+                                  className="text-slate-400 active:text-white disabled:opacity-20 w-7 h-6 flex items-center justify-center leading-none"
+                                >↑</button>
+                                <button
+                                  onClick={() => onMoveQueueItem(item.id, 'down')}
+                                  disabled={idx === visibleQueue.length - 1}
+                                  className="text-slate-400 active:text-white disabled:opacity-20 w-7 h-6 flex items-center justify-center leading-none"
+                                >↓</button>
+                              </div>
                               <SportBadge sport={item.sport} className="shrink-0" />
                               <span className="flex-1 text-sm font-semibold truncate text-white">{item.team}</span>
                               {itemEp !== null && <span className="text-xs text-amber-400 shrink-0">~{itemEp} EP</span>}
@@ -1805,21 +1817,7 @@ const DraftView = (props) => {
                                   className="text-xs px-2 py-1 rounded bg-green-600 hover:bg-green-500 text-white font-semibold shrink-0"
                                 >Draft</button>
                               )}
-                              <div className="flex gap-1 shrink-0">
-                                <button
-                                  onClick={() => onMoveQueueItem(item.id, 'up')}
-                                  disabled={idx === 0}
-                                  className="text-slate-500 hover:text-white disabled:opacity-20 w-6 h-6 flex items-center justify-center transition-colors"
-                                  title="Move up"
-                                >↑</button>
-                                <button
-                                  onClick={() => onMoveQueueItem(item.id, 'down')}
-                                  disabled={idx === visibleQueue.length - 1}
-                                  className="text-slate-500 hover:text-white disabled:opacity-20 w-6 h-6 flex items-center justify-center transition-colors"
-                                  title="Move down"
-                                >↓</button>
-                              </div>
-                              <button onClick={() => onRemoveFromQueue(item.id)} className="text-slate-400 hover:text-red-400 shrink-0 text-sm">✕</button>
+                              <button onClick={() => onRemoveFromQueue(item.id)} className="text-slate-400 hover:text-red-400 shrink-0 text-sm px-1">✕</button>
                             </div>
                           );
                         });
