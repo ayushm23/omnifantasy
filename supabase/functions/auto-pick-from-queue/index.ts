@@ -98,6 +98,14 @@ Deno.serve(async (req) => {
     const picker = normalizeDraftPicker(draftOrder[pickerIdx]);
     if (!picker?.email) return skip('picker email unknown');
 
+    // Always send OTC email for the new current picker (server-side reliability).
+    // This covers the case where the previous picker's tab closed before the client-side
+    // 1500ms setTimeout fired. Uses draft_reminders dedup to prevent double-sends with
+    // the client-side send-otc-email call.
+    sendOtcEmailDeduped(admin, leagueId, league, newState, currentPick, currentRound, numMembers).catch(e =>
+      console.warn('auto-pick-from-queue: OTC email error', e)
+    );
+
     // Check if this picker has auto-pick enabled
     const { data: memberSettings } = await admin
       .from('draft_member_settings')
@@ -186,9 +194,9 @@ Deno.serve(async (req) => {
   }
 });
 
-// Send the OTC email for the next picker after an auto-pick.
-// Replicates the core logic from send-otc-email without the user-pref check
-// (we let send-otc-email's own RPC gate handle it).
+// Send the OTC email for the next picker after an auto-pick, with dedup.
+// Writing the dedup record for nextPick prevents the webhook re-fire (triggered by the
+// draft_state update we just made) from double-sending via sendOtcEmailDeduped.
 async function sendOtcEmailForNextPick(
   admin: ReturnType<typeof createClient>,
   leagueId: string,
@@ -209,6 +217,14 @@ async function sendOtcEmailForNextPick(
   });
   const nextPicker = normalizeDraftPicker(draftOrder[pickerIdx]);
   if (!nextPicker?.email) return;
+
+  // Claim the dedup slot — if another path already sent for nextPick, bail out
+  const { error: insertError } = await admin.from('draft_reminders').insert({
+    league_id: leagueId,
+    pick_number: nextPick,
+    reminder_type: 'otc',
+  });
+  if (insertError) return; // PK conflict = already sent
 
   // Check user OTC preference
   const { data: wantsEmail } = await admin.rpc('get_user_otc_pref', { p_email: nextPicker.email });
@@ -232,6 +248,60 @@ async function sendOtcEmailForNextPick(
   `;
 
   await sendEmail({ to: nextPicker.email, subject, text, html });
+}
+
+// Send OTC email to whoever is currently on the clock, deduped via draft_reminders.
+// Called on every current_pick advance so OTC emails are reliable even when the
+// previous picker's client tab closes before the 1500ms client-side setTimeout fires.
+async function sendOtcEmailDeduped(
+  admin: ReturnType<typeof createClient>,
+  leagueId: string,
+  league: { name: string; draft_timer: string | null },
+  draftState: Record<string, unknown>,
+  currentPick: number,
+  currentRound: number,
+  numMembers: number,
+) {
+  // Claim the dedup slot atomically — PK conflict means another path already sent
+  const { error: insertError } = await admin.from('draft_reminders').insert({
+    league_id: leagueId,
+    pick_number: currentPick,
+    reminder_type: 'otc',
+  });
+  if (insertError) return; // already sent
+
+  const draftOrder = draftState.draft_order as unknown[];
+  const pickerIdx = getPickerIndex({
+    currentPick,
+    currentRound,
+    numMembers,
+    isSnake: (draftState.is_snake as boolean) ?? true,
+    thirdRoundReversal: !!(draftState.third_round_reversal),
+  });
+  const picker = normalizeDraftPicker(draftOrder[pickerIdx]);
+  if (!picker?.email) return;
+
+  const { data: wantsEmail } = await admin.rpc('get_user_otc_pref', { p_email: picker.email });
+  if (!wantsEmail) return;
+
+  const appUrl = Deno.env.get('APP_URL') || '';
+  const link   = appUrl ? `${appUrl}?draft=${leagueId}` : '';
+  const name   = picker.name || picker.email.split('@')[0];
+  const subject = `You're on the clock in ${league.name}!`;
+  const text    = `Hi ${name},\n\nIt's your turn to draft in ${league.name} on Omnifantasy!\n\nDraft now: ${link}\n\nOmnifantasy`;
+  const html    = `
+    <p>Hi <strong>${escapeHtml(name)}</strong>,</p>
+    <p>It's your turn to draft in <strong>${escapeHtml(league.name)}</strong> on Omnifantasy!</p>
+    <p>
+      <a href="${escapeHtml(link)}"
+         style="background:#16a34a;color:white;padding:10px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin:8px 0;font-weight:600;">
+        Draft Now &#8594;
+      </a>
+    </p>
+    <p style="color:#6b7280;font-size:13px;">Or visit: ${escapeHtml(link)}</p>
+  `;
+
+  await sendEmail({ to: picker.email, subject, text, html });
 }
 
 // wouldBreakSportCoverage, buildCandidates, getQueueAutopick, fetchExpectedPoints

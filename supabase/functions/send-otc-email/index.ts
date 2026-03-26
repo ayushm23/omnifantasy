@@ -56,6 +56,16 @@ Deno.serve(async (req) => {
     const maxPicks   = numMembers * (league.draft_rounds || 0);
     if (maxPicks > 0 && state.current_pick > maxPicks) return skip('draft complete');
 
+    // Dedup: the server-side webhook (auto-pick-from-queue) may have already sent the OTC
+    // email for this pick. Claim the slot atomically — if it fails, bail out to prevent
+    // the user receiving a duplicate email.
+    const { error: dedupError } = await admin.from('draft_reminders').insert({
+      league_id:     leagueId,
+      pick_number:   state.current_pick,
+      reminder_type: 'otc',
+    });
+    if (dedupError) return skip('OTC already sent for this pick');
+
     // Determine who is now on the clock
     const pickerIdx = getPickerIndex({
       currentPick:      state.current_pick,

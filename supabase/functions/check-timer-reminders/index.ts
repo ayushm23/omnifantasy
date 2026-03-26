@@ -315,6 +315,15 @@ async function sendOtcEmailForNextPick(
   const nextPicker = normalizeDraftPicker(draftOrder[pickerIdx]);
   if (!nextPicker?.email) return;
 
+  // Claim the dedup slot — prevents the auto-pick-from-queue webhook re-fire from
+  // double-sending when draft_state advances to nextPick
+  const { error: insertError } = await admin.from('draft_reminders').insert({
+    league_id: league.id,
+    pick_number: nextPick,
+    reminder_type: 'otc',
+  });
+  if (insertError) return; // PK conflict = already sent
+
   const { data: wantsEmail } = await admin.rpc('get_user_otc_pref', { p_email: nextPicker.email });
   if (!wantsEmail) return;
 
