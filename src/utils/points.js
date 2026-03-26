@@ -80,10 +80,10 @@ export function calculatePickPoints(pick, resultsMap) {
       if (pos >= 4 && pos <= 7) return 20;
       return 0;
     }
-    // Fallback for old cache entries without rankings (pre-v2 format)
-    return (results.events || []).reduce((sum, event) => {
-      return sum + getSingleEventPoints(team, event);
-    }, 0);
+    // No rankings array means this is a stale pre-v2 cache entry.
+    // Return null (sport not yet scoreable) rather than running the old per-event
+    // 80/50/30/20 fallback, which could inflate totals to 4× the correct maximum.
+    return null;
   }
 
   return getSingleEventPoints(team, results);

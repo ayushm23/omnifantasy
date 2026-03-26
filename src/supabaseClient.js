@@ -300,14 +300,19 @@ export const getDraftState = async (leagueId) => {
   return { data, error };
 };
 
-export const updateDraftState = async (leagueId, updates) => {
-  const { data, error } = await supabase
+export const updateDraftState = async (leagueId, updates, guardCurrentPick = null) => {
+  let query = supabase
     .from('draft_state')
     .update(updates)
-    .eq('league_id', leagueId)
-    .select()
-    .single();
+    .eq('league_id', leagueId);
 
+  // When provided, only advance if current_pick hasn't already moved (prevents
+  // last-writer-wins when two clients race to advance after the same pick slot).
+  if (guardCurrentPick != null) {
+    query = query.eq('current_pick', guardCurrentPick);
+  }
+
+  const { data, error } = await query.select().single();
   return { data, error };
 };
 

@@ -23,7 +23,7 @@ import { generateStandings } from './utils/standings';
 import { filterResultsForLeague } from './utils/points';
 import { generateDraftBoard, formatPickNumber, getCurrentPickerFromState, normalizeDraftPicker, wouldBreakSportCoverage, picksUntilTurn } from './utils/draft';
 import { getUserInitials, getUserDisplayName } from './utils/userDisplay';
-import { formatHourLabel } from './utils/format';
+import { formatHourLabel, formatTimeRemaining } from './utils/format';
 import LeagueView from './views/LeagueView';
 import DraftView from './views/DraftView';
 import ConfirmModal from './components/ConfirmModal';
@@ -337,22 +337,6 @@ const OmnifantasyApp = () => {
     return Math.max(0, pausedMs);
   };
 
-  const formatTimeRemaining = (ms) => {
-    if (ms === null || ms === 0) return null;
-
-    const hours = Math.floor(ms / (1000 * 60 * 60));
-    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((ms % (1000 * 60)) / 1000);
-
-    if (hours > 0) {
-      return `${hours}h ${minutes}m ${seconds}s`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${seconds}s`;
-    } else {
-      return `${seconds}s`;
-    }
-  };
-
   const selectableSports = getSelectableSports(AVAILABLE_SPORTS);
 
   useEffect(() => {
@@ -512,7 +496,7 @@ const OmnifantasyApp = () => {
   // Auto-remove queue items when their team gets picked by anyone.
   useEffect(() => {
     if (!myQueue?.length || !supabasePicks?.length) return;
-    const pickedKeys = new Set(supabasePicks.map((p) => `${p.sport}::${p.team}`));
+    const pickedKeys = new Set(supabasePicks.map((p) => `${p.sport}::${p.team_name}`));
     myQueue.forEach((item) => {
       if (pickedKeys.has(`${item.sport}::${item.team}`)) {
         removeFromQueue(item.id);
