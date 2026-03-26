@@ -363,7 +363,7 @@ export const useDraft = (leagueId) => {
       current_pick: nextPick,
       current_round: nextRound,
       pick_started_at: new Date().toISOString(),
-    });
+    }, draftState.currentPick);
 
     if (stateError) console.error(stateError);
   };
