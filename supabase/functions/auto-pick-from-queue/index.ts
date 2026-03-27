@@ -102,9 +102,11 @@ Deno.serve(async (req) => {
     // This covers the case where the previous picker's tab closed before the client-side
     // 1500ms setTimeout fired. Uses draft_reminders dedup to prevent double-sends with
     // the client-side send-otc-email call.
-    sendOtcEmailDeduped(admin, leagueId, league, newState, currentPick, currentRound, numMembers).catch(e =>
-      console.warn('auto-pick-from-queue: OTC email error', e)
-    );
+    try {
+      await sendOtcEmailDeduped(admin, leagueId, league, newState, currentPick, currentRound, numMembers);
+    } catch (e) {
+      console.warn('auto-pick-from-queue: OTC email error', e);
+    }
 
     // Check if this picker has auto-pick enabled
     const { data: memberSettings } = await admin
@@ -171,10 +173,12 @@ Deno.serve(async (req) => {
 
     if (stateError) console.error('auto-pick-from-queue: state update error', stateError);
 
-    // Fire OTC email for the next picker (best-effort, don't await)
-    sendOtcEmailForNextPick(admin, leagueId, league.name, league.draft_timer, newState, nextPick, nextRound, numMembers).catch(e =>
-      console.warn('auto-pick-from-queue: OTC email error', e)
-    );
+    // Send OTC email for the next picker before returning so it isn't killed early
+    try {
+      await sendOtcEmailForNextPick(admin, leagueId, league.name, league.draft_timer, newState, nextPick, nextRound, numMembers);
+    } catch (e) {
+      console.warn('auto-pick-from-queue: OTC email error', e);
+    }
 
     console.log(`auto-pick-from-queue: picked ${chosen.sport}/${chosen.team} for ${picker.email} (pick ${currentPick})`);
 

@@ -98,16 +98,13 @@ Deno.serve(async (req) => {
       // subject "1 hour left" is accurate. The dedup table prevents double-sending.
       if (timeRemaining < ONE_HOUR_MS || timeRemaining > ONE_HOUR_MS + CRON_WINDOW_MS) continue;
 
-      // Dedup: skip if we already sent a 1h reminder for this pick
-      const { data: existing } = await admin
-        .from('draft_reminders')
-        .select('pick_number')
-        .eq('league_id', league.id)
-        .eq('pick_number', state.current_pick)
-        .eq('reminder_type', '1h')
-        .maybeSingle();
-
-      if (existing) continue;
+      // Dedup: claim the slot atomically — PK conflict means another cron run already sent
+      const { error: dedupError } = await admin.from('draft_reminders').insert({
+        league_id:     league.id,
+        pick_number:   state.current_pick,
+        reminder_type: '1h',
+      });
+      if (dedupError) continue; // already sent
 
       // Find current picker
       const pickerIdx = getPickerIndex({
@@ -155,11 +152,6 @@ Deno.serve(async (req) => {
 
       try {
         await sendEmail({ to: picker.email, subject, text, html });
-        await admin.from('draft_reminders').insert({
-          league_id:     league.id,
-          pick_number:   state.current_pick,
-          reminder_type: '1h',
-        });
         sent++;
       } catch (e) {
         console.error(`1h reminder failed for league ${league.id}:`, e);
@@ -285,9 +277,11 @@ async function autoPickExpired(
 
   if (stateError) console.error('timer-expiry auto-pick: state update error', stateError);
 
-  sendOtcEmailForNextPick(admin, league, state, nextPick, nextRound, numMembers).catch(e =>
-    console.warn('timer-expiry auto-pick: OTC email error', e)
-  );
+  try {
+    await sendOtcEmailForNextPick(admin, league, state, nextPick, nextRound, numMembers);
+  } catch (e) {
+    console.warn('timer-expiry auto-pick: OTC email error', e);
+  }
 
   console.log(`timer-expiry auto-pick: picked ${chosen.sport}/${chosen.team} for ${picker.email} (pick ${currentPick})`);
   return true;
